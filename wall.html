@@ -297,9 +297,29 @@
       return card;
     }
 
-    // Первый запрос сразу, затем каждые 3 секунды
+    // Первый запрос сразу
     fetchAndRender();
-    setInterval(fetchAndRender, 3000);
+
+    // ── SSE: мгновенное обновление при новом фото ──
+    function connectSSE() {
+      const es = new EventSource('/events');
+
+      es.onmessage = function(e) {
+        if (e.data === 'refresh') {
+          fetchAndRender();
+        }
+      };
+
+      es.onerror = function() {
+        // Соединение потеряно — пересоединяемся через 3 секунды
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+    connectSSE();
+
+    // Резервный опрос каждые 5 секунд (на случай если SSE не работает)
+    setInterval(fetchAndRender, 5000);
   </script>
 
 </body>

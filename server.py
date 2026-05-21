@@ -1,6 +1,9 @@
 """
 Простой HTTP-сервер для отдачи веб-стены и фото.
 Порт 8080, без внешних зависимостей (только стандартная библиотека Python).
+
+Поддерживает Server-Sent Events (SSE) на /events —
+браузер получает мгновенное уведомление при появлении нового фото.
 """
 
 import io
@@ -8,15 +11,18 @@ import json
 import logging
 import mimetypes
 import os
+import threading
+import time
 import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
-PHOTOS_DIR = Path("photos")
-META_FILE = Path("photos_meta.json")
+PHOTOS_DIR   = Path("photos")
+META_FILE    = Path("photos_meta.json")
 SESSION_FILE = Path("session.json")
-WALL_FILE = Path("wall.html")
+WALL_FILE    = Path("wall.html")
 PORT = 8080
 
 logging.basicConfig(
@@ -24,6 +30,59 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+# ── SSE: список активных клиентов-подписчиков ──────────────────────────────
+# Каждый элемент — объект wfile (сокет) открытого SSE-соединения.
+_sse_clients: list = []
+_sse_lock = threading.Lock()
+
+# Время последнего изменения photos_meta.json — используется для детекции новых фото
+_last_meta_mtime: float = 0.0
+
+
+def _meta_mtime() -> float:
+    """Возвращает время изменения photos_meta.json, или 0 если файла нет."""
+    try:
+        return META_FILE.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _broadcast_refresh():
+    """Отправляет SSE-событие 'refresh' всем подключённым клиентам."""
+    dead = []
+    with _sse_lock:
+        for wfile in _sse_clients:
+            try:
+                wfile.write(b"data: refresh\n\n")
+                wfile.flush()
+            except OSError:
+                dead.append(wfile)
+        for wfile in dead:
+            _sse_clients.remove(wfile)
+
+
+def _watcher_thread():
+    """
+    Фоновый поток: следит за изменением photos_meta.json.
+    При изменении рассылает SSE-событие всем браузерам.
+    """
+    global _last_meta_mtime
+    _last_meta_mtime = _meta_mtime()
+
+    while True:
+        time.sleep(0.5)  # проверяем каждые 0.5 секунды
+        mtime = _meta_mtime()
+        if mtime != _last_meta_mtime:
+            _last_meta_mtime = mtime
+            _broadcast_refresh()
+            logger.info("SSE: разослано событие refresh (%d клиентов)", len(_sse_clients))
+
+
+# ── Многопоточный HTTP-сервер ───────────────────────────────────────────────
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    """HTTPServer с поддержкой многопоточности — нужно для SSE."""
+    daemon_threads = True  # потоки завершаются вместе с процессом
 
 
 def load_session() -> dict:
@@ -65,6 +124,8 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_wall()
         elif path == "/meta":
             self.serve_meta()
+        elif path == "/events":
+            self.serve_events()
         elif path == "/download":
             self.serve_download()
         elif path.startswith("/photo/"):
@@ -78,7 +139,6 @@ class WallHandler(BaseHTTPRequestHandler):
         if not WALL_FILE.exists():
             self.send_error(404, "Файл wall.html не найден")
             return
-
         try:
             content = WALL_FILE.read_bytes()
             self.send_response(200)
@@ -103,15 +163,12 @@ class WallHandler(BaseHTTPRequestHandler):
             try:
                 with META_FILE.open("r", encoding="utf-8") as f:
                     all_meta = json.load(f)
-                # Фильтруем только фото текущей сессии
                 data = [p for p in all_meta if p.get("session_id") == session_id]
             except (json.JSONDecodeError, OSError) as e:
                 logger.error("Ошибка чтения photos_meta.json: %s", e)
                 data = []
 
-        # Последние 12, новые первыми
         data = list(reversed(data[-12:]))
-
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -119,6 +176,36 @@ class WallHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def serve_events(self):
+        """
+        SSE-эндпоинт: держит соединение открытым и отправляет событие
+        'refresh' когда появляется новое фото.
+        Браузер подключается один раз и мгновенно получает обновления.
+        """
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_cors_headers()
+        self.end_headers()
+
+        # Регистрируем клиента
+        with _sse_lock:
+            _sse_clients.append(self.wfile)
+
+        try:
+            # Отправляем heartbeat каждые 20 секунд чтобы соединение не закрылось
+            while True:
+                time.sleep(20)
+                self.wfile.write(b": heartbeat\n\n")
+                self.wfile.flush()
+        except OSError:
+            pass
+        finally:
+            with _sse_lock:
+                if self.wfile in _sse_clients:
+                    _sse_clients.remove(self.wfile)
 
     def serve_download(self):
         """
@@ -129,7 +216,6 @@ class WallHandler(BaseHTTPRequestHandler):
         photos = [p for p in photos if p.is_file()]
 
         if not photos:
-            # Если фото нет — возвращаем понятную страницу
             body = "<html><body><h2>Фото пока нет 📷</h2></body></html>".encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -139,7 +225,6 @@ class WallHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            # Создаём ZIP в памяти — не нужен временный файл на диске
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_STORED) as zf:
                 for photo in photos:
@@ -149,7 +234,6 @@ class WallHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Length", str(len(zip_bytes)))
-            # Браузер предложит сохранить файл с этим именем
             self.send_header(
                 "Content-Disposition",
                 'attachment; filename="wedding_tanya_nikita_photos.zip"'
@@ -163,7 +247,6 @@ class WallHandler(BaseHTTPRequestHandler):
 
     def serve_photo(self, filename: str):
         """Отдаёт файл фото из папки photos/."""
-        # Защита от path traversal: разрешаем только имя файла без слешей
         if "/" in filename or "\\" in filename or ".." in filename:
             self.send_error(400, "Некорректное имя файла")
             return
@@ -182,7 +265,6 @@ class WallHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", mime_type)
             self.send_header("Content-Length", str(len(content)))
-            # Кэшируем фото на 1 час (они не меняются)
             self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
             self.wfile.write(content)
@@ -192,11 +274,15 @@ class WallHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    """Запускает HTTP-сервер."""
-    # Убеждаемся, что папка photos существует
+    """Запускает HTTP-сервер с поддержкой SSE."""
     PHOTOS_DIR.mkdir(exist_ok=True)
 
-    server = HTTPServer(("0.0.0.0", PORT), WallHandler)
+    # Запускаем фоновый поток-наблюдатель за новыми фото
+    watcher = threading.Thread(target=_watcher_thread, daemon=True)
+    watcher.start()
+    logger.info("Наблюдатель за фото запущен.")
+
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), WallHandler)
     logger.info("Сервер запущен на http://0.0.0.0:%d", PORT)
     logger.info("Открой в браузере: http://localhost:%d", PORT)
 
