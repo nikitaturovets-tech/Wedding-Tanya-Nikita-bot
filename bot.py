@@ -403,20 +403,46 @@ async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 # ──────────────────────── обработчик входящих фото ──────────────────────────
 
-# Словарь ожидающих подписи: user_id → filename
-# Хранится в памяти — сбрасывается при перезапуске бота (это нормально)
+# Словарь ожидающих подписи: user_id → {filename, name, time, session_id}
+# Фото сохранено на диск, но НЕ добавлено в meta — ждём подпись или /skip
 pending_caption: dict = {}
 
 
+def _publish_photo(filename: str, name: str, time_str: str,
+                   session_id: str, caption: str) -> None:
+    """Добавляет фото в photos_meta.json — после этого оно появляется на стене."""
+    meta = load_meta()
+    meta.append({
+        "filename":   filename,
+        "name":       name,
+        "time":       time_str,
+        "session_id": session_id,
+        "caption":    caption,
+    })
+    save_meta(meta)
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Принимает фото от гостя, сохраняет на диск и спрашивает подпись."""
+    """
+    Принимает фото от гостя, сохраняет на диск и ждёт подписи.
+    На стену фото НЕ добавляется до тех пор, пока гость не напишет
+    подпись или не отправит /skip.
+    """
     user = update.effective_user
     name = user.full_name if user else "Гость"
 
-    # Берём фото в максимальном качестве (последний элемент списка)
-    photo = update.message.photo[-1]
+    # Если гость прислал новое фото пока мы ждали подпись к предыдущему —
+    # публикуем предыдущее без подписи, чтобы не потерять
+    if user.id in pending_caption:
+        prev = pending_caption.pop(user.id)
+        _publish_photo(
+            prev["filename"], prev["name"], prev["time"],
+            prev["session_id"], caption=""
+        )
+        logger.info("Предыдущее фото %s опубликовано без подписи (гость прислал новое)", prev["filename"])
 
-    # Формируем уникальное имя файла: timestamp_user_id.jpg
+    # Берём фото в максимальном качестве
+    photo = update.message.photo[-1]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}_{user.id}.jpg"
     filepath = PHOTOS_DIR / filename
@@ -424,7 +450,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         file = await context.bot.get_file(photo.file_id)
         await file.download_to_drive(str(filepath))
-        logger.info("Сохранено фото: %s от %s", filename, name)
+        logger.info("Сохранено фото на диск: %s от %s", filename, name)
     except Exception as e:
         logger.error("Ошибка при скачивании фото от %s: %s", name, e)
         await update.message.reply_text(
@@ -432,19 +458,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # Записываем метаданные без подписи — подпись добавим после ответа гостя
-    meta = load_meta()
-    meta.append({
-        "filename": filename,
-        "name": name,
-        "time": datetime.now().strftime("%H:%M"),
+    # Запоминаем данные фото — НЕ публикуем пока нет подписи
+    pending_caption[user.id] = {
+        "filename":   filename,
+        "name":       name,
+        "time":       datetime.now().strftime("%H:%M"),
         "session_id": get_current_session_id(),
-        "caption": "",
-    })
-    save_meta(meta)
-
-    # Запоминаем что ждём подпись от этого пользователя
-    pending_caption[user.id] = filename
+    }
 
     await update.message.reply_text(
         f"✨ Фото получено, {name}!\n\n"
@@ -454,12 +474,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Гость пропускает добавление подписи командой /skip."""
+    """Гость пропускает добавление подписи — фото публикуется без подписи."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
 
     if user.id in pending_caption:
-        pending_caption.pop(user.id)
+        pending = pending_caption.pop(user.id)
+        _publish_photo(
+            pending["filename"], pending["name"], pending["time"],
+            pending["session_id"], caption=""
+        )
+        logger.info("Фото %s опубликовано без подписи (/skip)", pending["filename"])
         await update.message.reply_text(
             f"🎊 Готово, {name}! Твоё фото появится на экране в зале!"
         )
@@ -470,33 +495,25 @@ async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обрабатывает текстовые сообщения: сохраняет подпись или просит прислать фото."""
+    """Обрабатывает текст: сохраняет подпись и публикует фото, или просит прислать фото."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
     text = update.message.text.strip()
 
-    # Если ждём подпись от этого пользователя — сохраняем её
     if user.id in pending_caption:
-        filename = pending_caption.pop(user.id)
+        pending = pending_caption.pop(user.id)
+        caption = text[:100]  # не более 100 символов
 
-        # Ограничиваем длину подписи до 100 символов
-        caption = text[:100]
-
-        # Обновляем поле caption в метаданных по имени файла
-        meta = load_meta()
-        for entry in meta:
-            if entry.get("filename") == filename:
-                entry["caption"] = caption
-                break
-        save_meta(meta)
-
-        logger.info("Подпись к фото %s от %s: %r", filename, name, caption)
+        _publish_photo(
+            pending["filename"], pending["name"], pending["time"],
+            pending["session_id"], caption=caption
+        )
+        logger.info("Фото %s опубликовано с подписью от %s: %r", pending["filename"], name, caption)
         await update.message.reply_text(
             f"🎊 Готово, {name}! Фото с подписью появится на экране в зале!"
         )
         return
 
-    # Обычный текст без контекста — просим прислать фото
     await update.message.reply_text(
         "📸 Пришли мне фото! Просто прикрепи снимок к сообщению и отправь."
     )
