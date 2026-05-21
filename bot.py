@@ -31,6 +31,7 @@ PHOTOS_DIR = Path("photos")
 META_FILE = Path("photos_meta.json")
 SESSION_FILE = Path("session.json")
 QUEUE_FILE = Path("toast_queue.json")
+TOAST_DONE_FILE = Path("toast_done.json")  # кто уже выступил в эту сессию
 
 # Настройка логирования
 logging.basicConfig(
@@ -108,6 +109,23 @@ def save_queue(queue: list) -> None:
     """Сохраняет очередь тостов в файл."""
     with QUEUE_FILE.open("w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
+
+
+def load_toast_done() -> set:
+    """Загружает множество user_id тех, кто уже выступил в эту сессию."""
+    if not TOAST_DONE_FILE.exists():
+        return set()
+    try:
+        with TOAST_DONE_FILE.open("r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
+def save_toast_done(done: set) -> None:
+    """Сохраняет список уже выступивших."""
+    with TOAST_DONE_FILE.open("w", encoding="utf-8") as f:
+        json.dump(list(done), f, ensure_ascii=False, indent=2)
 
 
 # ────────────────────────── обработчики команд ──────────────────────────────
@@ -213,14 +231,23 @@ async def cmd_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = user.id
 
     queue = load_queue()
+    done = load_toast_done()
 
-    # Проверяем, не стоит ли гость уже в очереди
+    # Уже выступал в эту сессию
+    if user_id in done:
+        await update.message.reply_text(
+            "🥂 Ты уже выступал(а) с тостом в эту сессию.\n"
+            "Спасибо за поздравление! 🎉"
+        )
+        return
+
+    # Уже стоит в очереди
     for entry in queue:
         if entry["user_id"] == user_id:
             pos = queue.index(entry) + 1
             await update.message.reply_text(
-                f"🥂 {name}, ты уже в очереди!\n"
-                f"Твоя позиция: #{pos}"
+                f"🥂 Ты уже в очереди на тост!\n"
+                f"Твоя позиция: #{pos} — ожидай, скоро дадут слово 🎤"
             )
             return
 
@@ -235,14 +262,14 @@ async def cmd_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pos = len(queue)
     if pos == 1:
         await update.message.reply_text(
-            f"🥂 {name}, ты первый в очереди на тост!\n"
-            "Скоро тебе дадут слово 🎤"
+            f"🥂 Спасибо, {name}!\n\n"
+            "Ты первый(ая) в очереди — совсем скоро дадут слово 🎤"
         )
     else:
         await update.message.reply_text(
-            f"🥂 {name}, ты в очереди!\n"
+            f"🥂 Спасибо, {name}! Ты в очереди на тост.\n\n"
             f"Твоя позиция: #{pos}\n"
-            f"Впереди тебя: {pos - 1} чел."
+            f"Ожидай — скоро дадут слово 🎤"
         )
     logger.info("Гость %s встал в очередь тостов, позиция %d", name, pos)
 
@@ -302,10 +329,15 @@ async def cmd_next_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("📋 Очередь пуста — больше никого нет.")
         return
 
-    done = queue.pop(0)
+    done_entry = queue.pop(0)
     save_queue(queue)
 
-    text = f"✅ *{done['name']}* — отметил(а) тост!\n\n"
+    # Запоминаем выступившего — в эту сессию больше не встанет
+    done = load_toast_done()
+    done.add(done_entry["user_id"])
+    save_toast_done(done)
+
+    text = f"✅ *{done_entry['name']}* — выступил(а)!\n\n"
 
     if queue:
         nxt = queue[0]
@@ -316,21 +348,22 @@ async def cmd_next_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text += "🎉 Очередь завершена! Больше тостов нет."
 
     await update.message.reply_text(text, parse_mode="Markdown")
-    logger.info("Тост отмечен: %s, осталось в очереди: %d", done['name'], len(queue))
+    logger.info("Тост отмечен: %s, осталось в очереди: %d", done_entry['name'], len(queue))
 
 
 async def cmd_clear_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Полностью очищает очередь тостов — только для администратора."""
+    """Полностью очищает очередь тостов и историю выступивших — только для администратора."""
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("⛔ Нет доступа.")
         return
 
-    queue = load_queue()
-    count = len(queue)
+    count = len(load_queue())
     save_queue([])
+    save_toast_done(set())  # сбрасываем и историю — все могут встать снова
 
     await update.message.reply_text(
-        f"🗑 Очередь тостов очищена. Удалено записей: {count}"
+        f"🗑 Очередь тостов очищена. Удалено записей: {count}\n"
+        "Все гости снова могут записаться на тост."
     )
     logger.info("Администратор очистил очередь тостов (%d записей)", count)
 
