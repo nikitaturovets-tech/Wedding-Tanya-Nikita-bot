@@ -5,12 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>💒 Таня &amp; Никита — Свадебная фотостена</title>
   <style>
-    /* ── Сброс и базовые стили ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0a;
-      color: #f0c040;
+      background: #c8d8e8;
+      color: #1e2d4a;
       font-family: 'Georgia', 'Times New Roman', serif;
       height: 100vh;
       overflow: hidden;
@@ -18,116 +17,156 @@
       flex-direction: column;
     }
 
+    /* ── Частицы ── */
+    #particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+
     /* ── Заголовок ── */
     header {
       text-align: center;
-      padding: 18px 20px 12px;
-      background: linear-gradient(180deg, #111 0%, transparent 100%);
+      padding: 14px 20px 8px;
+      background: linear-gradient(180deg, rgba(180,210,232,0.95) 0%, rgba(200,216,232,0.0) 100%);
       flex-shrink: 0;
+      position: relative;
+      z-index: 2;
     }
 
     header h1 {
-      font-size: clamp(1.6rem, 4vw, 3rem);
-      letter-spacing: 0.08em;
-      text-shadow: 0 0 30px rgba(240, 192, 64, 0.6);
-      /* ← Поменяй имена здесь */
+      font-size: clamp(1.6rem, 3.5vw, 2.8rem);
+      letter-spacing: 0.1em;
+      color: #1e2d4a;
+      animation: glow 4s ease-in-out infinite;
     }
+
+    header h1 span { color: #e86040; }
 
     header p {
-      font-size: clamp(0.75rem, 1.5vw, 1rem);
-      color: #a88c30;
-      margin-top: 4px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+      color: #4a6080;
+      font-size: clamp(0.7rem, 1.5vw, 1rem);
+      margin-top: 3px;
+      letter-spacing: 0.08em;
     }
 
-    /* ── Сетка фото ── */
+    .counter {
+      display: inline-block;
+      margin-top: 6px;
+      background: rgba(232,96,64,0.12);
+      border: 1px solid rgba(232,96,64,0.4);
+      border-radius: 20px;
+      padding: 2px 14px;
+      font-size: clamp(0.65rem, 1.2vw, 0.85rem);
+      color: #e86040;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+
+    @keyframes glow {
+      0%,100% { text-shadow: 0 1px 8px rgba(30,45,74,0.15); }
+      50%      { text-shadow: 0 2px 20px rgba(232,96,64,0.3), 0 1px 8px rgba(30,45,74,0.1); }
+    }
+
+    .divider {
+      text-align: center;
+      color: rgba(232,96,64,0.45);
+      font-size: 0.85rem;
+      letter-spacing: 0.35em;
+      margin: 1px 0 2px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* ── Сетка ── */
     #grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      padding: 12px 16px 16px;
+      gap: 10px;
+      padding: 6px 12px 12px;
       flex: 1;
       overflow: hidden;
       align-content: start;
+      position: relative;
+      z-index: 2;
     }
 
-    /* ── Карточка фото ── */
+    /* ── Карточка ── */
     .card {
       position: relative;
-      border-radius: 8px;
+      border-radius: 12px;
       overflow: hidden;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      background: #dce8f0;
       aspect-ratio: 1 / 1;
-      animation: fadeIn 0.6s ease both;
+      animation: cardIn 0.7s cubic-bezier(0.34,1.56,0.64,1) both;
+      box-shadow: 0 2px 12px rgba(30,45,74,0.15), 0 0 0 1px rgba(30,45,74,0.08);
+      transition: box-shadow 0.3s;
     }
+
+    .card:hover {
+      box-shadow: 0 4px 24px rgba(232,96,64,0.25), 0 0 0 2px rgba(232,96,64,0.5);
+    }
+
+    /* Коралловая рамка у новых фото */
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      border: 2px solid rgba(232,96,64,0.0);
+      transition: border-color 0.4s;
+      pointer-events: none;
+    }
+    .card.new-card::after { border-color: rgba(232,96,64,0.8); }
 
     .card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
     }
 
-    /* Подпись поверх фото — вся нижняя плашка */
+    /* Нижняя плашка */
     .card .caption {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 28px 8px 6px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.88));
-      font-size: clamp(0.6rem, 1.2vw, 0.85rem);
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 28px 9px 7px;
+      background: linear-gradient(transparent, rgba(20,35,60,0.82));
+      display: flex; flex-direction: column; gap: 3px;
     }
 
-    /* Текст подписи гостя */
-    .card .caption .photo-caption {
-      color: #fff;
-      font-size: clamp(0.65rem, 1.3vw, 0.9rem);
-      font-style: italic;
-      line-height: 1.2;
+    .card .photo-caption {
+      color: #f0e8e4;
+      font-size: clamp(0.6rem, 1.1vw, 0.82rem);
+      font-style: italic; line-height: 1.2;
       word-break: break-word;
     }
 
-    /* Строка с именем и временем */
-    .card .caption .caption-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .card .caption-meta {
+      display: flex; justify-content: space-between; align-items: center;
     }
 
-    .card .caption .guest-name {
-      color: #f0c040;
+    .card .guest-name {
+      color: #ffb0a0;
       font-weight: bold;
+      font-size: clamp(0.6rem, 1.1vw, 0.82rem);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 70%;
     }
 
-    .card .caption .photo-time {
-      color: #a88c30;
-      font-size: 0.75em;
-      flex-shrink: 0;
-    }
+    .card .photo-time { color: #a0b8c8; font-size: 0.75em; flex-shrink: 0; }
 
     /* Бейдж "Новое" */
-    .card .badge-new {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: #f0c040;
-      color: #0a0a0a;
-      font-size: 0.65rem;
-      font-weight: bold;
-      padding: 2px 7px;
-      border-radius: 20px;
-      letter-spacing: 0.05em;
+    .badge-new {
+      position: absolute; top: 7px; right: 7px;
+      background: linear-gradient(135deg, #e86040, #d04020);
+      color: #fff;
+      font-size: 0.6rem; font-weight: bold;
+      padding: 2px 8px; border-radius: 20px;
+      letter-spacing: 0.04em;
       animation: pulse 1.5s ease infinite;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+    @keyframes cardIn {
+      from { opacity:0; transform: scale(0.85) translateY(15px); }
+      to   { opacity:1; transform: scale(1) translateY(0); }
     }
 
     /* ── Пустое состояние ── */
@@ -138,189 +177,350 @@
       justify-content: center;
       flex: 1;
       gap: 16px;
-      color: #333;
+      color: #7090b0;
+      position: relative;
+      z-index: 2;
     }
-
     #empty .icon { font-size: 5rem; }
     #empty p { font-size: 1.1rem; letter-spacing: 0.05em; }
 
-    /* ── Анимации ── */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.92) translateY(8px); }
-      to   { opacity: 1; transform: scale(1) translateY(0); }
+    /* ── СПОТЛАЙТ — новое фото на весь экран ── */
+    #spotlight {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(180,210,232,0.92);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.5s ease;
+      backdrop-filter: blur(4px);
+    }
+    #spotlight.active { opacity: 1; pointer-events: auto; }
+
+    #spotlight .sp-inner {
+      position: relative;
+      max-width: min(85vh, 85vw);
+      max-height: min(85vh, 85vw);
+      width: 100%; height: 100%;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 0 0 3px rgba(232,96,64,0.6),
+                  0 8px 60px rgba(30,45,74,0.3),
+                  0 0 80px rgba(232,96,64,0.15);
+      animation: spIn 0.6s cubic-bezier(0.34,1.3,0.64,1) both;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.6; }
+    @keyframes spIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    #spotlight img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+
+    #spotlight .sp-caption {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 60px 20px 20px;
+      background: linear-gradient(transparent, rgba(20,35,60,0.88));
+      text-align: center;
+    }
+
+    #spotlight .sp-text {
+      color: #f0e8e4;
+      font-size: clamp(1rem, 2.5vw, 1.6rem);
+      font-style: italic; margin-bottom: 8px;
+    }
+
+    #spotlight .sp-name {
+      color: #ffb0a0;
+      font-size: clamp(0.9rem, 2vw, 1.3rem);
+      font-weight: bold; letter-spacing: 0.08em;
+    }
+
+    #spotlight .sp-badge {
+      position: absolute; top: 16px; right: 16px;
+      background: linear-gradient(135deg, #e86040, #d04020);
+      color: #fff;
+      font-size: 0.8rem; font-weight: bold;
+      padding: 4px 14px; border-radius: 20px;
+      box-shadow: 0 2px 12px rgba(232,96,64,0.4);
     }
 
     /* ── Индикатор подключения ── */
     #status-dot {
-      position: fixed;
-      bottom: 10px;
-      right: 14px;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #2ecc71;
-      opacity: 0.7;
+      position: fixed; bottom: 10px; right: 14px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4caf80; opacity: 0.8; z-index: 5;
     }
-
     #status-dot.error { background: #e74c3c; }
   </style>
 </head>
 <body>
 
-  <header>
-    <!-- ↓ Поменяй имена жениха и невесты здесь ↓ -->
-    <h1>💒 Таня &amp; Никита</h1>
-    <p>Поделись моментом — пришли фото боту!</p>
-  </header>
+<canvas id="particles"></canvas>
 
-  <div id="grid"></div>
+<header>
+  <h1>🤍 Таня &amp; <span>Никита</span></h1>
+  <p>Поделись моментом — пришли фото боту!</p>
+  <div class="counter" id="counter">📸 0 фото</div>
+</header>
+<div class="divider">· · · ♥ · · ·</div>
 
-  <div id="empty">
-    <div class="icon">📸</div>
-    <p>Фото ещё нет — будь первым!</p>
+<div id="grid"></div>
+
+<div id="empty">
+  <div class="icon">📸</div>
+  <p>Фото ещё нет — будь первым!</p>
+</div>
+
+<div id="status-dot" title="Статус подключения"></div>
+
+<!-- Спотлайт — новое фото на весь экран -->
+<div id="spotlight">
+  <div class="sp-inner">
+    <img id="sp-img" src="" alt="">
+    <div class="sp-caption">
+      <div class="sp-text" id="sp-text"></div>
+      <div class="sp-name" id="sp-name"></div>
+    </div>
+    <div class="sp-badge">♥ Новое фото!</div>
   </div>
+</div>
 
-  <div id="status-dot" title="Статус подключения"></div>
+<script>
+  // ── Частицы: сердечки и точки ──────────────────────────────────────────────
+  const canvas = document.getElementById('particles');
+  const pctx   = canvas.getContext('2d');
+  let particles = [];
 
-  <script>
-    // Храним filename уже показанных карточек, чтобы не дублировать
-    const shown = new Set();
-    // Последние 2 добавленных filename — помечаем бейджем "Новое"
-    let recentFilenames = [];
+  function resizeCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
-    const grid = document.getElementById('grid');
-    const empty = document.getElementById('empty');
-    const dot = document.getElementById('status-dot');
+  function drawHeart(ctx, size) {
+    ctx.beginPath();
+    ctx.moveTo(0, -size * 0.3);
+    ctx.bezierCurveTo(size*0.5, -size, size, -size*0.3, size*0.5, size*0.2);
+    ctx.bezierCurveTo(size*0.3, size*0.6, 0, size*0.85, 0, size*0.85);
+    ctx.bezierCurveTo(0, size*0.85, -size*0.3, size*0.6, -size*0.5, size*0.2);
+    ctx.bezierCurveTo(-size, -size*0.3, -size*0.5, -size, 0, -size*0.3);
+    ctx.closePath();
+  }
 
-    async function fetchAndRender() {
-      try {
-        const res = await fetch('/meta');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+  function createParticle() {
+    const isHeart = Math.random() > 0.35;
+    return {
+      x: Math.random() * canvas.width,
+      y: -10,
+      size: 3 + Math.random() * 5,
+      speed: 0.4 + Math.random() * 0.7,
+      drift: (Math.random() - 0.5) * 0.5,
+      alpha: 0.2 + Math.random() * 0.4,
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.02,
+      isHeart,
+      color: isHeart
+        ? `rgba(${220+Math.floor(Math.random()*35)},${80+Math.floor(Math.random()*40)},${50+Math.floor(Math.random()*30)},1)`
+        : `rgba(${150+Math.floor(Math.random()*50)},${180+Math.floor(Math.random()*40)},${220+Math.floor(Math.random()*30)},1)`,
+    };
+  }
 
-        const photos = await res.json(); // новые первыми (сервер уже перевернул)
+  for (let i = 0; i < 40; i++) {
+    const p = createParticle();
+    p.y = Math.random() * canvas.height;
+    particles.push(p);
+  }
 
-        dot.classList.remove('error');
+  function animateParticles() {
+    pctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (Math.random() < 0.13) particles.push(createParticle());
+    particles = particles.filter(p => p.y < canvas.height + 20);
 
-        if (photos.length === 0) {
-          grid.style.display = 'none';
-          empty.style.display = 'flex';
-          return;
-        }
+    for (const p of particles) {
+      p.y += p.speed;
+      p.x += p.drift;
+      p.rot += p.rotSpeed;
 
-        grid.style.display = 'grid';
-        empty.style.display = 'none';
+      pctx.save();
+      pctx.globalAlpha = p.alpha;
+      pctx.translate(p.x, p.y);
+      pctx.rotate(p.rot);
+      pctx.fillStyle = p.color;
 
-        // Находим новые фото (которых ещё нет в shown)
-        const newPhotos = photos.filter(p => !shown.has(p.filename));
-        recentFilenames = newPhotos.map(p => p.filename);
-
-        // Добавляем новые карточки в начало сетки
-        newPhotos.forEach(photo => {
-          shown.add(photo.filename);
-          const card = buildCard(photo);
-          grid.prepend(card);
-        });
-
-        // Убираем бейджи с карточек, добавленных ранее
-        grid.querySelectorAll('.badge-new').forEach(b => {
-          if (!recentFilenames.includes(b.closest('.card').dataset.filename)) {
-            b.remove();
-          }
-        });
-
-        // Оставляем не более 12 карточек в DOM
-        while (grid.children.length > 12) {
-          grid.removeChild(grid.lastChild);
-        }
-
-      } catch (err) {
-        console.error('Ошибка загрузки метаданных:', err);
-        dot.classList.add('error');
+      if (p.isHeart) {
+        drawHeart(pctx, p.size);
+      } else {
+        pctx.beginPath();
+        pctx.arc(0, 0, p.size * 0.45, 0, Math.PI * 2);
       }
+      pctx.fill();
+      pctx.restore();
+    }
+    requestAnimationFrame(animateParticles);
+  }
+  animateParticles();
+
+  // ── Данные и логика ────────────────────────────────────────────────────────
+  const shown = new Set();
+  let recentFilenames = [];
+  // Очередь спотлайта — показываем по одному
+  let spotlightQueue = [];
+  let spotlightBusy  = false;
+
+  const grid      = document.getElementById('grid');
+  const empty     = document.getElementById('empty');
+  const dot       = document.getElementById('status-dot');
+  const spotlight = document.getElementById('spotlight');
+  const spImg     = document.getElementById('sp-img');
+  const spText    = document.getElementById('sp-text');
+  const spName    = document.getElementById('sp-name');
+  const counter   = document.getElementById('counter');
+
+  async function fetchAndRender() {
+    try {
+      const res = await fetch('/meta');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const photos = await res.json(); // новые первыми
+
+      dot.classList.remove('error');
+
+      if (photos.length === 0) {
+        grid.style.display = 'none';
+        empty.style.display = 'flex';
+        counter.textContent = '📸 0 фото';
+        return;
+      }
+
+      grid.style.display = 'grid';
+      empty.style.display = 'none';
+
+      // Новые фото (которых ещё нет в shown)
+      const newPhotos = photos.filter(p => !shown.has(p.filename));
+      recentFilenames = newPhotos.map(p => p.filename);
+
+      newPhotos.forEach(photo => {
+        shown.add(photo.filename);
+        // Показываем спотлайт для каждого нового фото
+        spotlightQueue.push(photo);
+      });
+
+      // Если спотлайт не занят — запускаем очередь
+      processSpotlightQueue();
+
+      // Добавляем карточки новых фото в сетку сразу (без спотлайта)
+      // они получат бейдж, спотлайт — отдельно
+      newPhotos.forEach(photo => {
+        const card = buildCard(photo);
+        grid.prepend(card);
+      });
+
+      // Убираем лишние карточки
+      while (grid.children.length > 12) grid.removeChild(grid.lastChild);
+
+      counter.textContent = '📸 ' + photos.length + ' фото';
+
+    } catch (err) {
+      console.error('Ошибка загрузки метаданных:', err);
+      dot.classList.add('error');
+    }
+  }
+
+  function processSpotlightQueue() {
+    if (spotlightBusy || spotlightQueue.length === 0) return;
+    spotlightBusy = true;
+    const photo = spotlightQueue.shift();
+    showSpotlight(photo, () => {
+      spotlightBusy = false;
+      processSpotlightQueue();
+    });
+  }
+
+  function showSpotlight(photo, onDone) {
+    spImg.src = '/photo/' + encodeURIComponent(photo.filename);
+    spText.textContent = photo.caption ? '«' + photo.caption + '»' : '';
+    spName.textContent = photo.name + ' · ' + photo.time;
+    spotlight.classList.add('active');
+
+    setTimeout(() => {
+      spotlight.classList.remove('active');
+      setTimeout(onDone, 500);
+    }, 8000);
+  }
+
+  function buildCard(photo) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.filename = photo.filename;
+
+    const img = document.createElement('img');
+    img.src = '/photo/' + encodeURIComponent(photo.filename);
+    img.alt = 'Фото от ' + photo.name;
+    img.loading = 'lazy';
+
+    const caption = document.createElement('div');
+    caption.className = 'caption';
+
+    if (photo.caption) {
+      const captionText = document.createElement('div');
+      captionText.className = 'photo-caption';
+      captionText.textContent = '«' + photo.caption + '»';
+      caption.appendChild(captionText);
     }
 
-    function buildCard(photo) {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.dataset.filename = photo.filename;
+    const meta = document.createElement('div');
+    meta.className = 'caption-meta';
 
-      const img = document.createElement('img');
-      img.src = '/photo/' + encodeURIComponent(photo.filename);
-      img.alt = 'Фото от ' + photo.name;
-      img.loading = 'lazy';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'guest-name';
+    nameSpan.textContent = photo.name;
 
-      const caption = document.createElement('div');
-      caption.className = 'caption';
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'photo-time';
+    timeSpan.textContent = photo.time;
 
-      // Текст подписи — показываем только если она есть
-      if (photo.caption) {
-        const captionText = document.createElement('div');
-        captionText.className = 'photo-caption';
-        captionText.textContent = '«' + photo.caption + '»';
-        caption.appendChild(captionText);
-      }
+    meta.appendChild(nameSpan);
+    meta.appendChild(timeSpan);
+    caption.appendChild(meta);
+    card.appendChild(img);
+    card.appendChild(caption);
 
-      // Имя и время
-      const meta = document.createElement('div');
-      meta.className = 'caption-meta';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'guest-name';
-      nameSpan.textContent = photo.name;
-
-      const timeSpan = document.createElement('span');
-      timeSpan.className = 'photo-time';
-      timeSpan.textContent = photo.time;
-
-      meta.appendChild(nameSpan);
-      meta.appendChild(timeSpan);
-      caption.appendChild(meta);
-      card.appendChild(img);
-      card.appendChild(caption);
-
-      // Бейдж "Новое" для свежих фото
-      if (recentFilenames.includes(photo.filename)) {
-        const badge = document.createElement('div');
-        badge.className = 'badge-new';
-        badge.textContent = '✨ Новое';
-        card.appendChild(badge);
-
-        // Убираем бейдж через 15 секунд
-        setTimeout(() => badge.remove(), 15000);
-      }
-
-      return card;
+    if (recentFilenames.includes(photo.filename)) {
+      const badge = document.createElement('div');
+      badge.className = 'badge-new';
+      badge.textContent = '♥ Новое';
+      card.appendChild(badge);
+      card.classList.add('new-card');
+      setTimeout(() => {
+        badge.remove();
+        card.classList.remove('new-card');
+      }, 15000);
     }
 
-    // Первый запрос сразу
-    fetchAndRender();
+    return card;
+  }
 
-    // ── SSE: мгновенное обновление при новом фото ──
-    function connectSSE() {
-      const es = new EventSource('/events');
+  // Первый запрос сразу
+  fetchAndRender();
 
-      es.onmessage = function(e) {
-        if (e.data === 'refresh') {
-          fetchAndRender();
-        }
-      };
+  // ── SSE: мгновенное обновление при новом фото ──────────────────────────────
+  function connectSSE() {
+    const es = new EventSource('/events');
+    es.onmessage = function(e) {
+      if (e.data === 'refresh') fetchAndRender();
+    };
+    es.onerror = function() {
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+  connectSSE();
 
-      es.onerror = function() {
-        // Соединение потеряно — пересоединяемся через 3 секунды
-        es.close();
-        setTimeout(connectSSE, 3000);
-      };
-    }
-    connectSSE();
-
-    // Резервный опрос каждые 5 секунд (на случай если SSE не работает)
-    setInterval(fetchAndRender, 5000);
-  </script>
+  // Резервный опрос каждые 5 секунд
+  setInterval(fetchAndRender, 5000);
+</script>
 
 </body>
 </html>
