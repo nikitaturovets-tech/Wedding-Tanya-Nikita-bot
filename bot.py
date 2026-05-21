@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
-from telegram import Update
+from telegram import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -386,6 +386,45 @@ async def handle_non_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 # ──────────────────────────── запуск бота ───────────────────────────────────
 
+async def setup_commands(app: Application) -> None:
+    """
+    Устанавливает меню команд в Telegram.
+    Гостям показывается короткое меню с основными действиями.
+    Администратору — расширенное с командами управления.
+    """
+    # Команды для всех гостей
+    guest_commands = [
+        BotCommand("start",       "👋 Начало — как пользоваться ботом"),
+        BotCommand("toast",       "🥂 Встать в очередь на тост"),
+        BotCommand("canceltoast", "❌ Выйти из очереди на тост"),
+    ]
+
+    # Команды для администратора (включают всё гостевое + управление)
+    admin_commands = guest_commands + [
+        BotCommand("queue",        "📋 Список очереди тостов"),
+        BotCommand("nexttoast",    "➡️ Следующий тост"),
+        BotCommand("clearqueue",   "🗑 Очистить очередь тостов"),
+        BotCommand("status",       "📊 Статус текущей сессии фото"),
+        BotCommand("newsession",   "🆕 Начать новую сессию фото"),
+        BotCommand("clearsession", "🗑 Удалить фото сессии"),
+    ]
+
+    # Устанавливаем гостевое меню для всех личных чатов
+    await app.bot.set_my_commands(
+        guest_commands,
+        scope=BotCommandScopeAllPrivateChats(),
+    )
+
+    # Перекрываем меню для администратора его личным расширенным набором
+    if ADMIN_ID:
+        await app.bot.set_my_commands(
+            admin_commands,
+            scope=BotCommandScopeChat(chat_id=ADMIN_ID),
+        )
+
+    logger.info("Меню команд установлено.")
+
+
 def main() -> None:
     """Запускает телеграм-бота."""
     if not BOT_TOKEN:
@@ -397,7 +436,7 @@ def main() -> None:
     # Инициализируем сессию при первом запуске
     load_session()
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).post_init(setup_commands).build()
 
     # Регистрируем обработчики команд
     app.add_handler(CommandHandler("start", cmd_start))
