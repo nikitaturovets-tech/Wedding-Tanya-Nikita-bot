@@ -1,8 +1,8 @@
 #!/bin/bash
-# Скрипт деплоя свадебной фотостены.
+# Скрипт деплоя свадебной фотостены (Debian 13).
 # Запускать из папки проекта: bash deploy.sh
 
-set -e  # остановить при любой ошибке
+set -e
 
 echo "======================================"
 echo "  Деплой свадебной фотостены 💒"
@@ -13,52 +13,65 @@ echo ""
 echo "📥 Обновляем код..."
 git pull
 
-# ── 2. Устанавливаем зависимости Python ──
+# ── 2. Создаём / обновляем виртуальное окружение Python ──
 echo ""
-echo "📦 Устанавливаем зависимости..."
-pip3 install -r requirements.txt --quiet
+echo "🐍 Настраиваем Python venv..."
+if [ ! -d ".venv" ]; then
+  python3 -m venv .venv
+  echo "   venv создан."
+fi
+source .venv/bin/activate
+pip install --quiet --upgrade pip
+pip install --quiet -r requirements.txt
+echo "   Зависимости установлены."
 
-# ── 3. Открываем порт 8080 через ufw ──
+# ── 3. Открываем порт 8080 через nftables ──
 echo ""
 echo "🔓 Открываем порт 8080..."
-if command -v ufw &>/dev/null; then
+if command -v nft &>/dev/null; then
+  # Добавляем правило только если его ещё нет
+  if ! nft list ruleset | grep -q "8080"; then
+    nft add rule ip filter INPUT tcp dport 8080 accept 2>/dev/null || \
+    nft add rule inet filter input tcp dport 8080 accept 2>/dev/null || \
+    echo "   Не удалось добавить правило nftables — проверь вручную."
+    echo "   Порт 8080 открыт через nftables."
+  else
+    echo "   Порт 8080 уже открыт."
+  fi
+elif command -v ufw &>/dev/null; then
   sudo ufw allow 8080/tcp
-  echo "   Порт 8080 открыт."
+  echo "   Порт 8080 открыт через ufw."
+elif command -v iptables &>/dev/null; then
+  iptables -I INPUT -p tcp --dport 8080 -j ACCEPT 2>/dev/null || true
+  echo "   Порт 8080 открыт через iptables."
 else
-  echo "   ufw не найден, пропускаем. Убедись, что порт 8080 открыт вручную."
+  echo "   ⚠️  Файрвол не найден — убедись, что порт 8080 открыт вручную."
 fi
 
-# ── 4. Создаём папку photos/ если нет ──
+# ── 4. Создаём нужные папки ──
 echo ""
-echo "📁 Проверяем папку photos/..."
-mkdir -p photos
-echo "   Папка photos/ готова."
+echo "📁 Создаём папки..."
+mkdir -p photos logs
+echo "   Папки photos/ и logs/ готовы."
 
-# ── 5. Останавливаем старые процессы если они запущены ──
+# ── 5. Останавливаем старые процессы ──
 echo ""
 echo "🛑 Останавливаем старые процессы (если есть)..."
-
-# Убиваем screen-сессии с нашими именами
 screen -S wedding-bot -X quit 2>/dev/null && echo "   Остановлен wedding-bot." || true
 screen -S wedding-server -X quit 2>/dev/null && echo "   Остановлен wedding-server." || true
-
-# Небольшая пауза перед перезапуском
 sleep 1
 
 # ── 6. Запускаем бота и сервер через screen ──
 echo ""
 echo "🚀 Запускаем бота и сервер..."
 
-# Запускаем бота в фоновом screen
-screen -dmS wedding-bot bash -c "cd $(pwd) && python3 bot.py >> logs/bot.log 2>&1"
+VENV_PYTHON="$(pwd)/.venv/bin/python3"
+
+screen -dmS wedding-bot bash -c "cd $(pwd) && ${VENV_PYTHON} bot.py >> logs/bot.log 2>&1"
 echo "   Бот запущен в screen-сессии 'wedding-bot'."
 
-# Запускаем HTTP-сервер в фоновом screen
-screen -dmS wedding-server bash -c "cd $(pwd) && python3 server.py >> logs/server.log 2>&1"
+screen -dmS wedding-server bash -c "cd $(pwd) && ${VENV_PYTHON} server.py >> logs/server.log 2>&1"
 echo "   Сервер запущен в screen-сессии 'wedding-server'."
-
-# Создаём папку для логов
-mkdir -p logs
 
 # ── 7. Выводим IP и ссылку ──
 echo ""
@@ -66,7 +79,6 @@ echo "======================================"
 echo "  ✅ Деплой завершён!"
 echo "======================================"
 
-# Получаем внешний IP сервера
 SERVER_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 
 echo ""
@@ -77,8 +89,8 @@ echo "📋 Полезные команды:"
 echo "   screen -r wedding-bot     — подключиться к боту"
 echo "   screen -r wedding-server  — подключиться к серверу"
 echo "   screen -ls                — список всех сессий"
-echo "   cat logs/bot.log          — логи бота"
-echo "   cat logs/server.log       — логи сервера"
+echo "   tail -f logs/bot.log      — логи бота в реальном времени"
+echo "   tail -f logs/server.log   — логи сервера в реальном времени"
 echo ""
 echo "🛑 Для остановки:"
 echo "   screen -S wedding-bot -X quit"
