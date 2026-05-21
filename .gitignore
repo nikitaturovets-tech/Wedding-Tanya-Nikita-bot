@@ -1,0 +1,7 @@
+.env
+photos/
+photos_meta.json
+session.json
+__pycache__/
+*.pyc
+*.pyo

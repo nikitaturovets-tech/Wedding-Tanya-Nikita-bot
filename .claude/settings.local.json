@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew install *)",
+      "Bash(apt-get install *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 -c \"import paramiko; print\\('paramiko ok'\\)\")",
+      "Bash(pip install *)",
+      "PowerShell(python -c \"import paramiko; print\\('paramiko ok'\\)\" 2>&1)",
+      "Bash(xargs grep -l \"github\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if 'github' in k.lower\\(\\) or 'token' in k.lower\\(\\) or 'env' in k.lower\\(\\)}, indent=2\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); mcp=d.get\\('mcpOAuth',{}\\); print\\(list\\(mcp.keys\\(\\)\\)\\)\")",
+      "Bash(find /c/Users/60048046 -maxdepth 3 -name \"settings.json\" 2>/dev/null | grep -i claude)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); mcp=d.get\\('mcpServers',{}\\); print\\(list\\(mcp.keys\\(\\)\\)\\)\")",
+      "Bash(git config *)",
+      "PowerShell(git config --global user.name 2>&1; git config --global user.email 2>&1; cat \"$env:USERPROFILE\\\\.gitconfig\" 2>&1)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\session-env\\\\\" | ForEach-Object { Write-Host \"=== $\\($_.Name\\) ===\"; Get-Content $_.FullName })"
+    ]
+  }
+}

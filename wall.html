@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💒 Свадебная фотостена</title>
+  <style>
+    /* ── Сброс и базовые стили ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      color: #f0c040;
+      font-family: 'Georgia', 'Times New Roman', serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Заголовок ── */
+    header {
+      text-align: center;
+      padding: 18px 20px 12px;
+      background: linear-gradient(180deg, #111 0%, transparent 100%);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: clamp(1.6rem, 4vw, 3rem);
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 30px rgba(240, 192, 64, 0.6);
+      /* ← Поменяй имена здесь */
+    }
+
+    header p {
+      font-size: clamp(0.75rem, 1.5vw, 1rem);
+      color: #a88c30;
+      margin-top: 4px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* ── Сетка фото ── */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 12px 16px 16px;
+      flex: 1;
+      overflow: hidden;
+      align-content: start;
+    }
+
+    /* ── Карточка фото ── */
+    .card {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      aspect-ratio: 1 / 1;
+      animation: fadeIn 0.6s ease both;
+    }
+
+    .card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Подпись поверх фото */
+    .card .caption {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px 8px 6px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      font-size: clamp(0.6rem, 1.2vw, 0.85rem);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .card .caption .guest-name {
+      color: #f0c040;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+    }
+
+    .card .caption .photo-time {
+      color: #a88c30;
+      font-size: 0.75em;
+      flex-shrink: 0;
+    }
+
+    /* Бейдж "Новое" */
+    .card .badge-new {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: #f0c040;
+      color: #0a0a0a;
+      font-size: 0.65rem;
+      font-weight: bold;
+      padding: 2px 7px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+      animation: pulse 1.5s ease infinite;
+    }
+
+    /* ── Пустое состояние ── */
+    #empty {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 16px;
+      color: #333;
+    }
+
+    #empty .icon { font-size: 5rem; }
+    #empty p { font-size: 1.1rem; letter-spacing: 0.05em; }
+
+    /* ── Анимации ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.92) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+
+    /* ── Индикатор подключения ── */
+    #status-dot {
+      position: fixed;
+      bottom: 10px;
+      right: 14px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #2ecc71;
+      opacity: 0.7;
+    }
+
+    #status-dot.error { background: #e74c3c; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <!-- ↓ Поменяй имена жениха и невесты здесь ↓ -->
+    <h1>💒 Таня &amp; Никита</h1>
+    <p>Поделись моментом — пришли фото боту!</p>
+  </header>
+
+  <div id="grid"></div>
+
+  <div id="empty">
+    <div class="icon">📸</div>
+    <p>Фото ещё нет — будь первым!</p>
+  </div>
+
+  <div id="status-dot" title="Статус подключения"></div>
+
+  <script>
+    // Храним filename уже показанных карточек, чтобы не дублировать
+    const shown = new Set();
+    // Последние 2 добавленных filename — помечаем бейджем "Новое"
+    let recentFilenames = [];
+
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+    const dot = document.getElementById('status-dot');
+
+    async function fetchAndRender() {
+      try {
+        const res = await fetch('/meta');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const photos = await res.json(); // новые первыми (сервер уже перевернул)
+
+        dot.classList.remove('error');
+
+        if (photos.length === 0) {
+          grid.style.display = 'none';
+          empty.style.display = 'flex';
+          return;
+        }
+
+        grid.style.display = 'grid';
+        empty.style.display = 'none';
+
+        // Находим новые фото (которых ещё нет в shown)
+        const newPhotos = photos.filter(p => !shown.has(p.filename));
+        recentFilenames = newPhotos.map(p => p.filename);
+
+        // Добавляем новые карточки в начало сетки
+        newPhotos.forEach(photo => {
+          shown.add(photo.filename);
+          const card = buildCard(photo);
+          grid.prepend(card);
+        });
+
+        // Убираем бейджи с карточек, добавленных ранее
+        grid.querySelectorAll('.badge-new').forEach(b => {
+          if (!recentFilenames.includes(b.closest('.card').dataset.filename)) {
+            b.remove();
+          }
+        });
+
+        // Оставляем не более 12 карточек в DOM
+        while (grid.children.length > 12) {
+          grid.removeChild(grid.lastChild);
+        }
+
+      } catch (err) {
+        console.error('Ошибка загрузки метаданных:', err);
+        dot.classList.add('error');
+      }
+    }
+
+    function buildCard(photo) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.filename = photo.filename;
+
+      const img = document.createElement('img');
+      img.src = '/photo/' + encodeURIComponent(photo.filename);
+      img.alt = 'Фото от ' + photo.name;
+      img.loading = 'lazy';
+
+      const caption = document.createElement('div');
+      caption.className = 'caption';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'guest-name';
+      nameSpan.textContent = photo.name;
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'photo-time';
+      timeSpan.textContent = photo.time;
+
+      caption.appendChild(nameSpan);
+      caption.appendChild(timeSpan);
+      card.appendChild(img);
+      card.appendChild(caption);
+
+      // Бейдж "Новое" для свежих фото
+      if (recentFilenames.includes(photo.filename)) {
+        const badge = document.createElement('div');
+        badge.className = 'badge-new';
+        badge.textContent = '✨ Новое';
+        card.appendChild(badge);
+
+        // Убираем бейдж через 15 секунд
+        setTimeout(() => badge.remove(), 15000);
+      }
+
+      return card;
+    }
+
+    // Первый запрос сразу, затем каждые 3 секунды
+    fetchAndRender();
+    setInterval(fetchAndRender, 3000);
+  </script>
+
+</body>
+</html>
