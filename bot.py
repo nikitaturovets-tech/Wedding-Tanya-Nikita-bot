@@ -356,7 +356,7 @@ async def cmd_next_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         try:
             await context.bot.send_message(
                 chat_id=nxt["user_id"],
-                text="🎤 Ты следующий говоришь тост!\n\nПодойди к микрофону 🥂"
+                text="🎤 Ты следующий говоришь тост!\n\nЖди сигнала от жениха 🥂"
             )
             text += "\n✉️ Гость уведомлён"
         except Exception as e:
