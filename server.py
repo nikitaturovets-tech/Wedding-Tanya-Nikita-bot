@@ -3,10 +3,12 @@
 Порт 8080, без внешних зависимостей (только стандартная библиотека Python).
 """
 
+import io
 import json
 import logging
 import mimetypes
 import os
+import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -63,6 +65,8 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_wall()
         elif path == "/meta":
             self.serve_meta()
+        elif path == "/download":
+            self.serve_download()
         elif path.startswith("/photo/"):
             filename = path[len("/photo/"):]
             self.serve_photo(filename)
@@ -115,6 +119,47 @@ class WallHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def serve_download(self):
+        """
+        Упаковывает все фото из папки photos/ в ZIP-архив
+        и отдаёт его браузеру для скачивания.
+        """
+        photos = sorted(PHOTOS_DIR.glob("*")) if PHOTOS_DIR.exists() else []
+        photos = [p for p in photos if p.is_file()]
+
+        if not photos:
+            # Если фото нет — возвращаем понятную страницу
+            body = "<html><body><h2>Фото пока нет 📷</h2></body></html>".encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        try:
+            # Создаём ZIP в памяти — не нужен временный файл на диске
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_STORED) as zf:
+                for photo in photos:
+                    zf.write(photo, arcname=photo.name)
+            zip_bytes = buf.getvalue()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(zip_bytes)))
+            # Браузер предложит сохранить файл с этим именем
+            self.send_header(
+                "Content-Disposition",
+                'attachment; filename="wedding_tanya_nikita_photos.zip"'
+            )
+            self.end_headers()
+            self.wfile.write(zip_bytes)
+            logger.info("ZIP скачан: %d фото, %.1f МБ", len(photos), len(zip_bytes) / 1024 / 1024)
+        except OSError as e:
+            logger.error("Ошибка создания ZIP: %s", e)
+            self.send_error(500, "Ошибка при создании архива")
 
     def serve_photo(self, filename: str):
         """Отдаёт файл фото из папки photos/."""
