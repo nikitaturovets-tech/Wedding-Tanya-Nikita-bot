@@ -366,10 +366,11 @@
   // ── Данные и логика ────────────────────────────────────────────────────────
   const shown = new Set();
   let recentFilenames = [];
-  let allPhotos      = [];   // все фото для карусели
-  let carouselIdx    = 0;    // текущая позиция в карусели
-  let spotlightQueue = [];   // приоритетная очередь новых фото
-  let spotlightBusy  = false;
+  let allPhotos        = [];   // все фото для карусели
+  let carouselIdx      = 0;    // текущая позиция в карусели
+  let lastShownFile    = null; // filename последнего показанного фото
+  let spotlightQueue   = [];   // приоритетная очередь новых фото
+  let spotlightBusy    = false;
 
   const grid      = document.getElementById('grid');
   const empty     = document.getElementById('empty');
@@ -443,8 +444,13 @@
       photo = spotlightQueue.shift();
       isNew = true;
     } else {
-      // Карусель: следующее фото по кругу
-      photo = allPhotos[carouselIdx % allPhotos.length];
+      // Карусель: следующее фото по кругу, без повтора подряд
+      const n = allPhotos.length;
+      // Пропускаем, если следующее совпадает с только что показанным
+      if (n > 1 && allPhotos[carouselIdx % n].filename === lastShownFile) {
+        carouselIdx++;
+      }
+      photo = allPhotos[carouselIdx % n];
       carouselIdx++;
       isNew = false;
     }
@@ -456,6 +462,7 @@
   }
 
   function showSpotlight(photo, isNew, onDone) {
+    lastShownFile = photo.filename; // запоминаем для защиты от повтора
     spImg.src = '/photo/' + encodeURIComponent(photo.filename);
     spText.textContent = photo.caption ? '«' + photo.caption + '»' : '';
     spName.textContent = photo.name + ' · ' + photo.time;
