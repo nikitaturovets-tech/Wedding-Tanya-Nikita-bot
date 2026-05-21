@@ -351,6 +351,17 @@ async def cmd_next_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text += f"🎤 Следующий: *{nxt['name']}*"
         if len(queue) > 1:
             text += f"\n📋 Ещё в очереди: {len(queue) - 1} чел."
+
+        # Уведомляем следующего гостя в личку
+        try:
+            await context.bot.send_message(
+                chat_id=nxt["user_id"],
+                text="🎤 Ты следующий говоришь тост!\n\nПодойди к микрофону 🥂"
+            )
+            text += "\n✉️ Гость уведомлён"
+        except Exception as e:
+            logger.warning("Не удалось отправить уведомление гостю %s: %s", nxt["name"], e)
+            text += "\n⚠️ Не удалось отправить уведомление гостю"
     else:
         text += "🎉 Очередь завершена! Больше тостов нет."
 
