@@ -283,7 +283,7 @@
       <div class="sp-text" id="sp-text"></div>
       <div class="sp-name" id="sp-name"></div>
     </div>
-    <div class="sp-badge">♥ Новое фото!</div>
+    <div class="sp-badge" id="sp-badge">♥ Новое фото!</div>
   </div>
 </div>
 
@@ -366,8 +366,9 @@
   // ── Данные и логика ────────────────────────────────────────────────────────
   const shown = new Set();
   let recentFilenames = [];
-  // Очередь спотлайта — показываем по одному
-  let spotlightQueue = [];
+  let allPhotos      = [];   // все фото для карусели
+  let carouselIdx    = 0;    // текущая позиция в карусели
+  let spotlightQueue = [];   // приоритетная очередь новых фото
   let spotlightBusy  = false;
 
   const grid      = document.getElementById('grid');
@@ -377,6 +378,7 @@
   const spImg     = document.getElementById('sp-img');
   const spText    = document.getElementById('sp-text');
   const spName    = document.getElementById('sp-name');
+  const spBadge   = document.getElementById('sp-badge');
   const counter   = document.getElementById('counter');
 
   async function fetchAndRender() {
@@ -397,29 +399,29 @@
       grid.style.display = 'grid';
       empty.style.display = 'none';
 
+      // Обновляем общий список для карусели (сервер отдаёт новые первыми,
+      // для карусели разворачиваем: старые → новые, чтобы листать по порядку)
+      allPhotos = [...photos].reverse();
+
       // Новые фото (которых ещё нет в shown)
       const newPhotos = photos.filter(p => !shown.has(p.filename));
       recentFilenames = newPhotos.map(p => p.filename);
 
       newPhotos.forEach(photo => {
         shown.add(photo.filename);
-        // Показываем спотлайт для каждого нового фото
-        spotlightQueue.push(photo);
+        spotlightQueue.push(photo); // в приоритетную очередь
       });
 
-      // Если спотлайт не занят — запускаем очередь
-      processSpotlightQueue();
+      // Запускаем спотлайт если ещё не работает
+      processSpotlight();
 
-      // Добавляем карточки новых фото в сетку сразу (без спотлайта)
-      // они получат бейдж, спотлайт — отдельно
+      // Добавляем карточки в сетку
       newPhotos.forEach(photo => {
         const card = buildCard(photo);
         grid.prepend(card);
       });
 
-      // Убираем лишние карточки
       while (grid.children.length > 12) grid.removeChild(grid.lastChild);
-
       counter.textContent = '📸 ' + photos.length + ' фото';
 
     } catch (err) {
@@ -428,25 +430,41 @@
     }
   }
 
-  function processSpotlightQueue() {
-    if (spotlightBusy || spotlightQueue.length === 0) return;
+  // Главный цикл спотлайта: новые фото → карусель всех фото
+  function processSpotlight() {
+    if (spotlightBusy) return;
+    if (allPhotos.length === 0) return;
+
     spotlightBusy = true;
-    const photo = spotlightQueue.shift();
-    showSpotlight(photo, () => {
+
+    let photo, isNew;
+    if (spotlightQueue.length > 0) {
+      // Приоритет: новое фото
+      photo = spotlightQueue.shift();
+      isNew = true;
+    } else {
+      // Карусель: следующее фото по кругу
+      photo = allPhotos[carouselIdx % allPhotos.length];
+      carouselIdx++;
+      isNew = false;
+    }
+
+    showSpotlight(photo, isNew, () => {
       spotlightBusy = false;
-      processSpotlightQueue();
+      processSpotlight(); // сразу следующее
     });
   }
 
-  function showSpotlight(photo, onDone) {
+  function showSpotlight(photo, isNew, onDone) {
     spImg.src = '/photo/' + encodeURIComponent(photo.filename);
     spText.textContent = photo.caption ? '«' + photo.caption + '»' : '';
     spName.textContent = photo.name + ' · ' + photo.time;
+    spBadge.style.display = isNew ? '' : 'none'; // бейдж только для новых
     spotlight.classList.add('active');
 
     setTimeout(() => {
       spotlight.classList.remove('active');
-      setTimeout(onDone, 500);
+      setTimeout(onDone, 600);
     }, 8000);
   }
 
