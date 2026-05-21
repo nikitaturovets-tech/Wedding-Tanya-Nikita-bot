@@ -30,6 +30,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 PHOTOS_DIR = Path("photos")
 META_FILE = Path("photos_meta.json")
 SESSION_FILE = Path("session.json")
+QUEUE_FILE = Path("toast_queue.json")
 
 # Настройка логирования
 logging.basicConfig(
@@ -88,6 +89,25 @@ def get_current_session_id() -> str:
 def is_admin(user_id: int) -> bool:
     """Проверяет, является ли пользователь администратором."""
     return ADMIN_ID != 0 and user_id == ADMIN_ID
+
+
+# ─────────────────────── очередь тостов ────────────────────────────────────
+
+def load_queue() -> list:
+    """Загружает очередь тостов из файла."""
+    if not QUEUE_FILE.exists():
+        return []
+    try:
+        with QUEUE_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_queue(queue: list) -> None:
+    """Сохраняет очередь тостов в файл."""
+    with QUEUE_FILE.open("w", encoding="utf-8") as f:
+        json.dump(queue, f, ensure_ascii=False, indent=2)
 
 
 # ────────────────────────── обработчики команд ──────────────────────────────
@@ -184,6 +204,137 @@ async def cmd_clear_session(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     logger.info("Администратор очистил сессию %s, удалено %d фото", session_id, deleted_count)
 
 
+# ──────────────────────── команды очереди тостов ────────────────────────────
+
+async def cmd_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Гость встаёт в очередь на тост командой /toast."""
+    user = update.effective_user
+    name = user.full_name if user else "Гость"
+    user_id = user.id
+
+    queue = load_queue()
+
+    # Проверяем, не стоит ли гость уже в очереди
+    for entry in queue:
+        if entry["user_id"] == user_id:
+            pos = queue.index(entry) + 1
+            await update.message.reply_text(
+                f"🥂 {name}, ты уже в очереди!\n"
+                f"Твоя позиция: #{pos}"
+            )
+            return
+
+    # Добавляем в конец очереди
+    queue.append({
+        "user_id": user_id,
+        "name": name,
+        "time": datetime.now().strftime("%H:%M"),
+    })
+    save_queue(queue)
+
+    pos = len(queue)
+    if pos == 1:
+        await update.message.reply_text(
+            f"🥂 {name}, ты первый в очереди на тост!\n"
+            "Скоро тебе дадут слово 🎤"
+        )
+    else:
+        await update.message.reply_text(
+            f"🥂 {name}, ты в очереди!\n"
+            f"Твоя позиция: #{pos}\n"
+            f"Впереди тебя: {pos - 1} чел."
+        )
+    logger.info("Гость %s встал в очередь тостов, позиция %d", name, pos)
+
+
+async def cmd_cancel_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Гость выходит из очереди командой /canceltoast."""
+    user = update.effective_user
+    name = user.full_name if user else "Гость"
+    user_id = user.id
+
+    queue = load_queue()
+    new_queue = [e for e in queue if e["user_id"] != user_id]
+
+    if len(new_queue) == len(queue):
+        await update.message.reply_text("Ты не стоишь в очереди на тост.")
+        return
+
+    save_queue(new_queue)
+    await update.message.reply_text(
+        f"✅ {name}, ты убран из очереди на тост."
+    )
+    logger.info("Гость %s вышел из очереди тостов", name)
+
+
+async def cmd_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает текущую очередь тостов — только для администратора."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+
+    queue = load_queue()
+
+    if not queue:
+        await update.message.reply_text("📋 Очередь тостов пуста.")
+        return
+
+    lines = ["📋 *Очередь тостов:*\n"]
+    for i, entry in enumerate(queue, start=1):
+        prefix = "🎤" if i == 1 else f"{i}."
+        lines.append(f"{prefix} {entry['name']} (записался в {entry['time']})")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown"
+    )
+
+
+async def cmd_next_toast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Убирает первого из очереди и показывает следующего — только для администратора."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+
+    queue = load_queue()
+
+    if not queue:
+        await update.message.reply_text("📋 Очередь пуста — больше никого нет.")
+        return
+
+    done = queue.pop(0)
+    save_queue(queue)
+
+    text = f"✅ *{done['name']}* — отметил(а) тост!\n\n"
+
+    if queue:
+        nxt = queue[0]
+        text += f"🎤 Следующий: *{nxt['name']}*"
+        if len(queue) > 1:
+            text += f"\n📋 Ещё в очереди: {len(queue) - 1} чел."
+    else:
+        text += "🎉 Очередь завершена! Больше тостов нет."
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+    logger.info("Тост отмечен: %s, осталось в очереди: %d", done['name'], len(queue))
+
+
+async def cmd_clear_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Полностью очищает очередь тостов — только для администратора."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+
+    queue = load_queue()
+    count = len(queue)
+    save_queue([])
+
+    await update.message.reply_text(
+        f"🗑 Очередь тостов очищена. Удалено записей: {count}"
+    )
+    logger.info("Администратор очистил очередь тостов (%d записей)", count)
+
+
 # ──────────────────────── обработчик входящих фото ──────────────────────────
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -253,6 +404,15 @@ def main() -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("newsession", cmd_new_session))
     app.add_handler(CommandHandler("clearsession", cmd_clear_session))
+
+    # Очередь тостов — гостевые команды
+    app.add_handler(CommandHandler("toast", cmd_toast))
+    app.add_handler(CommandHandler("canceltoast", cmd_cancel_toast))
+
+    # Очередь тостов — команды администратора
+    app.add_handler(CommandHandler("queue", cmd_queue))
+    app.add_handler(CommandHandler("nexttoast", cmd_next_toast))
+    app.add_handler(CommandHandler("clearqueue", cmd_clear_queue))
 
     # Обработчик фото
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
