@@ -403,8 +403,13 @@ async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 # ──────────────────────── обработчик входящих фото ──────────────────────────
 
+# Словарь ожидающих подписи: user_id → filename
+# Хранится в памяти — сбрасывается при перезапуске бота (это нормально)
+pending_caption: dict = {}
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Принимает фото от гостя, сохраняет на диск и записывает метаданные."""
+    """Принимает фото от гостя, сохраняет на диск и спрашивает подпись."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
 
@@ -417,7 +422,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     filepath = PHOTOS_DIR / filename
 
     try:
-        # Скачиваем файл через Telegram API
         file = await context.bot.get_file(photo.file_id)
         await file.download_to_drive(str(filepath))
         logger.info("Сохранено фото: %s от %s", filename, name)
@@ -428,23 +432,71 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # Записываем метаданные
+    # Записываем метаданные без подписи — подпись добавим после ответа гостя
     meta = load_meta()
     meta.append({
         "filename": filename,
         "name": name,
         "time": datetime.now().strftime("%H:%M"),
         "session_id": get_current_session_id(),
+        "caption": "",
     })
     save_meta(meta)
 
+    # Запоминаем что ждём подпись от этого пользователя
+    pending_caption[user.id] = filename
+
     await update.message.reply_text(
-        f"✨ Спасибо, {name}! Твоё фото появится на экране в зале! 🎊"
+        f"✨ Фото получено, {name}!\n\n"
+        "✏️ Напиши подпись к фото — она появится на экране в зале.\n"
+        "Или отправь /skip чтобы пропустить."
     )
 
 
-async def handle_non_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Отвечает, если гость прислал не фото."""
+async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Гость пропускает добавление подписи командой /skip."""
+    user = update.effective_user
+    name = user.full_name if user else "Гость"
+
+    if user.id in pending_caption:
+        pending_caption.pop(user.id)
+        await update.message.reply_text(
+            f"🎊 Готово, {name}! Твоё фото появится на экране в зале!"
+        )
+    else:
+        await update.message.reply_text(
+            "📸 Сначала пришли фото, а потом добавляй подпись."
+        )
+
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обрабатывает текстовые сообщения: сохраняет подпись или просит прислать фото."""
+    user = update.effective_user
+    name = user.full_name if user else "Гость"
+    text = update.message.text.strip()
+
+    # Если ждём подпись от этого пользователя — сохраняем её
+    if user.id in pending_caption:
+        filename = pending_caption.pop(user.id)
+
+        # Ограничиваем длину подписи до 100 символов
+        caption = text[:100]
+
+        # Обновляем поле caption в метаданных по имени файла
+        meta = load_meta()
+        for entry in meta:
+            if entry.get("filename") == filename:
+                entry["caption"] = caption
+                break
+        save_meta(meta)
+
+        logger.info("Подпись к фото %s от %s: %r", filename, name, caption)
+        await update.message.reply_text(
+            f"🎊 Готово, {name}! Фото с подписью появится на экране в зале!"
+        )
+        return
+
+    # Обычный текст без контекста — просим прислать фото
     await update.message.reply_text(
         "📸 Пришли мне фото! Просто прикрепи снимок к сообщению и отправь."
     )
@@ -464,6 +516,7 @@ async def setup_commands(app: Application) -> None:
         BotCommand("schedule",    "📅 Программа вечера"),
         BotCommand("toast",       "🥂 Встать в очередь на тост"),
         BotCommand("canceltoast", "❌ Выйти из очереди на тост"),
+        BotCommand("skip",        "⏩ Пропустить добавление подписи к фото"),
     ]
 
     # Команды для администратора (включают всё гостевое + управление)
@@ -514,6 +567,9 @@ def main() -> None:
     # Расписание
     app.add_handler(CommandHandler("schedule", cmd_schedule))
 
+    # Пропуск подписи
+    app.add_handler(CommandHandler("skip", cmd_skip))
+
     # Очередь тостов — гостевые команды
     app.add_handler(CommandHandler("toast", cmd_toast))
     app.add_handler(CommandHandler("canceltoast", cmd_cancel_toast))
@@ -527,7 +583,10 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     # Обработчик для всего остального (текст, стикеры и т.д.)
-    app.add_handler(MessageHandler(filters.ALL & ~filters.PHOTO & ~filters.COMMAND, handle_non_photo))
+    # Текстовые сообщения — подписи к фото или подсказка отправить фото
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    # Всё остальное (стикеры, голосовые и т.д.)
+    app.add_handler(MessageHandler(filters.ALL & ~filters.PHOTO & ~filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Бот запущен. Ожидаю фото от гостей...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

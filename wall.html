@@ -70,18 +70,34 @@
       display: block;
     }
 
-    /* Подпись поверх фото */
+    /* Подпись поверх фото — вся нижняя плашка */
     .card .caption {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      padding: 20px 8px 6px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 28px 8px 6px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.88));
       font-size: clamp(0.6rem, 1.2vw, 0.85rem);
       display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* Текст подписи гостя */
+    .card .caption .photo-caption {
+      color: #fff;
+      font-size: clamp(0.65rem, 1.3vw, 0.9rem);
+      font-style: italic;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    /* Строка с именем и временем */
+    .card .caption .caption-meta {
+      display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
     }
 
     .card .caption .guest-name {
@@ -241,6 +257,18 @@
       const caption = document.createElement('div');
       caption.className = 'caption';
 
+      // Текст подписи — показываем только если она есть
+      if (photo.caption) {
+        const captionText = document.createElement('div');
+        captionText.className = 'photo-caption';
+        captionText.textContent = '«' + photo.caption + '»';
+        caption.appendChild(captionText);
+      }
+
+      // Имя и время
+      const meta = document.createElement('div');
+      meta.className = 'caption-meta';
+
       const nameSpan = document.createElement('span');
       nameSpan.className = 'guest-name';
       nameSpan.textContent = photo.name;
@@ -249,8 +277,9 @@
       timeSpan.className = 'photo-time';
       timeSpan.textContent = photo.time;
 
-      caption.appendChild(nameSpan);
-      caption.appendChild(timeSpan);
+      meta.appendChild(nameSpan);
+      meta.appendChild(timeSpan);
+      caption.appendChild(meta);
       card.appendChild(img);
       card.appendChild(caption);
 
