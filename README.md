@@ -87,9 +87,8 @@ bash deploy.sh
 
 Дай гостям ссылку на бота:
 ```
-https://t.me/ИМЯ_ВАШЕГО_БОТА
+https://t.me/Wedding_Tanya_Nikita_bot
 ```
-(например: `https://t.me/tanya_nikita_wedding_bot`)
 
 Можно распечатать QR-код к этой ссылке на столиках.
 Сгенерировать QR: зайди на сайт [qr.io](https://qr.io) и вставь ссылку.
