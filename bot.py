@@ -855,7 +855,6 @@ async def setup_commands(app: Application) -> None:
     guest_commands = [
         BotCommand("start",       "👋 Начало — как пользоваться ботом"),
         BotCommand("schedule",    "📅 Программа вечера"),
-        BotCommand("table",       "🪑 Карта рассадки гостей"),
         BotCommand("toast",       "🥂 Встать в очередь на тост"),
         BotCommand("canceltoast", "❌ Выйти из очереди на тост"),
         BotCommand("skip",        "⏩ Пропустить добавление подписи к фото"),
