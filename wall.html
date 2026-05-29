@@ -833,6 +833,8 @@
       const res = await fetch('/quiz');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const state = await res.json();
+      // Если активен режим слайдшоу — квиз не показываем
+      if (slideshowEl && slideshowEl.classList.contains('visible')) return;
       const stateStr = JSON.stringify(state);
       if (stateStr === prevQuizStr) return;   // ничего не изменилось
       prevQuizStr = stateStr;
@@ -971,6 +973,7 @@
       prevModeStr = modeStr;
 
       if (data.mode === 'slideshow') {
+        hideQuizMode();   // скрываем квиз поверх слайдшоу
         await startSlideshow();
       } else {
         stopSlideshow();
