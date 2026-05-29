@@ -40,7 +40,6 @@ META_FILE = Path("photos_meta.json")
 SESSION_FILE = Path("session.json")
 QUEUE_FILE = Path("toast_queue.json")
 TOAST_DONE_FILE = Path("toast_done.json")
-TABLE_FILE = Path("table_photo.json")
 QUIZ_JSON = Path("quiz.json")
 QUIZ_STATE_FILE = Path("quiz_state.json")
 
@@ -226,8 +225,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🎯 Квиз про жениха и невесту!\n"
         "В определённый момент вечера здесь начнётся викторина — "
         "ответы приходят прямо в бот, результаты видны на экране!\n\n"
-        "🪑 Где моё место?\n"
-        "Нажми кнопку «Карта рассадки» в меню внизу экрана\n\n"
         "📅 Что будет дальше?\n"
         "Нажми «Программа вечера» — там весь план на сегодня\n\n"
         "🥂 Хочешь сказать тост?\n"
@@ -472,52 +469,6 @@ async def cmd_clear_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info("Администратор очистил очередь тостов (%d записей)", count)
 
 
-# ─────────────────────── карта столов ──────────────────────────────────────
-
-def load_table_photo() -> str:
-    """Возвращает file_id сохранённой карты столов, или пустую строку."""
-    if not TABLE_FILE.exists():
-        return ""
-    try:
-        with TABLE_FILE.open("r", encoding="utf-8") as f:
-            return json.load(f).get("file_id", "")
-    except (json.JSONDecodeError, OSError):
-        return ""
-
-
-def save_table_photo(file_id: str) -> None:
-    """Сохраняет file_id карты столов."""
-    with TABLE_FILE.open("w", encoding="utf-8") as f:
-        json.dump({"file_id": file_id}, f)
-
-
-async def cmd_set_table(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Инструкция для админа как загрузить карту столов."""
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Нет доступа.")
-        return
-    await update.message.reply_text(
-        "🪑 Чтобы установить карту столов:\n\n"
-        "Отправь фото и в подписи к нему напиши /settable\n\n"
-        "После этого гости смогут получить её по команде /table."
-    )
-
-
-async def cmd_table(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Гость получает карту рассадки."""
-    file_id = load_table_photo()
-    if not file_id:
-        await update.message.reply_text(
-            "🪑 Карта рассадки ещё не загружена.\n"
-            "Спроси организатора!"
-        )
-        return
-    await update.message.reply_photo(
-        photo=file_id,
-        caption="🪑 Карта рассадки гостей"
-    )
-
-
 # ──────────────────────── расписание дня ────────────────────────────────────
 
 SCHEDULE = """📅 *Программа вечера*
@@ -581,16 +532,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     name = user.full_name if user else "Гость"
     register_user(user.id, update.effective_chat.id, user.first_name)
-
-    # Если админ отправил фото с подписью /settable — сохраняем как карту столов
-    if is_admin(user.id):
-        caption = (update.message.caption or "").strip()
-        if caption == "/settable":
-            file_id = update.message.photo[-1].file_id
-            save_table_photo(file_id)
-            await update.message.reply_text("✅ Карта столов сохранена! Гости могут получить её по /table.")
-            logger.info("Админ обновил карту столов")
-            return
 
     # Если гость прислал новое фото пока мы ждали подпись к предыдущему —
     # публикуем предыдущее без подписи, чтобы не потерять
@@ -922,7 +863,6 @@ async def setup_commands(app: Application) -> None:
 
     # Команды для администратора (включают всё гостевое + управление)
     admin_commands = guest_commands + [
-        BotCommand("settable",      "🗺 Загрузить карту столов"),
         BotCommand("queue",         "📋 Список очереди тостов"),
         BotCommand("nexttoast",     "➡️ Следующий тост"),
         BotCommand("clearqueue",    "🗑 Очистить очередь тостов"),
@@ -975,10 +915,6 @@ def main() -> None:
 
     # Расписание
     app.add_handler(CommandHandler("schedule", cmd_schedule))
-
-    # Карта столов
-    app.add_handler(CommandHandler("table", cmd_table))
-    app.add_handler(CommandHandler("settable", cmd_set_table))
 
     # Пропуск подписи к фото
     app.add_handler(CommandHandler("skip", cmd_skip))
