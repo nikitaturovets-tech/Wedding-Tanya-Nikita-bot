@@ -19,10 +19,11 @@ from pathlib import Path
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
-PHOTOS_DIR   = Path("photos")
-META_FILE    = Path("photos_meta.json")
-SESSION_FILE = Path("session.json")
-WALL_FILE    = Path("wall.html")
+PHOTOS_DIR      = Path("photos")
+META_FILE       = Path("photos_meta.json")
+SESSION_FILE    = Path("session.json")
+QUIZ_STATE_FILE = Path("quiz_state.json")
+WALL_FILE       = Path("wall.html")
 PORT = 8080
 
 logging.basicConfig(
@@ -124,6 +125,8 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_wall()
         elif path == "/meta":
             self.serve_meta()
+        elif path == "/quiz":
+            self.serve_quiz()
         elif path == "/events":
             self.serve_events()
         elif path == "/download":
@@ -132,12 +135,12 @@ class WallHandler(BaseHTTPRequestHandler):
             filename = path[len("/photo/"):]
             self.serve_photo(filename)
         else:
-            self.send_error(404, "Страница не найдена")
+            self.send_error(404)
 
     def serve_wall(self):
         """Отдаёт главную страницу wall.html."""
         if not WALL_FILE.exists():
-            self.send_error(404, "Файл wall.html не найден")
+            self.send_error(404)
             return
         try:
             content = WALL_FILE.read_bytes()
@@ -148,7 +151,7 @@ class WallHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
         except OSError as e:
             logger.error("Ошибка чтения wall.html: %s", e)
-            self.send_error(500, "Внутренняя ошибка сервера")
+            self.send_error(500)
 
     def serve_meta(self):
         """
@@ -169,6 +172,29 @@ class WallHandler(BaseHTTPRequestHandler):
                 data = []
 
         data = list(reversed(data[-12:]))
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_quiz(self):
+        """
+        Отдаёт quiz_state.json — текущее состояние квиза для веб-стены.
+        Если файл не существует — возвращает заглушку с active: false.
+        """
+        if not QUIZ_STATE_FILE.exists():
+            data = {"active": False, "show_results": False}
+        else:
+            try:
+                with QUIZ_STATE_FILE.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                logger.error("Ошибка чтения quiz_state.json: %s", e)
+                data = {"active": False, "show_results": False}
+
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -243,17 +269,17 @@ class WallHandler(BaseHTTPRequestHandler):
             logger.info("ZIP скачан: %d фото, %.1f МБ", len(photos), len(zip_bytes) / 1024 / 1024)
         except OSError as e:
             logger.error("Ошибка создания ZIP: %s", e)
-            self.send_error(500, "Ошибка при создании архива")
+            self.send_error(500)
 
     def serve_photo(self, filename: str):
         """Отдаёт файл фото из папки photos/."""
         if "/" in filename or "\\" in filename or ".." in filename:
-            self.send_error(400, "Некорректное имя файла")
+            self.send_error(400)
             return
 
         filepath = PHOTOS_DIR / filename
         if not filepath.exists():
-            self.send_error(404, "Фото не найдено")
+            self.send_error(404)
             return
 
         try:
@@ -270,7 +296,7 @@ class WallHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
         except OSError as e:
             logger.error("Ошибка чтения фото %s: %s", filename, e)
-            self.send_error(500, "Внутренняя ошибка сервера")
+            self.send_error(500)
 
 
 def main():

@@ -2,6 +2,10 @@
 photos/
 photos_meta.json
 session.json
+quiz_state.json
 __pycache__/
 *.pyc
 *.pyo
+.venv/
+logs/
+*.log

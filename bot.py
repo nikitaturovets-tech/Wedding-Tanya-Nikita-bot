@@ -1,6 +1,6 @@
 """
-Телеграм-бот для сбора свадебных фото от гостей.
-Сохраняет фото в папку photos/ и метаданные в photos_meta.json.
+Телеграм-бот для свадьбы: фото гостей + интерактивный квиз.
+Фото сохраняются в photos/, квиз управляется администратором.
 """
 
 import os
@@ -11,9 +11,17 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
-from telegram import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat, Update
+from telegram import (
+    BotCommand,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeChat,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     ContextTypes,
@@ -31,8 +39,10 @@ PHOTOS_DIR = Path("photos")
 META_FILE = Path("photos_meta.json")
 SESSION_FILE = Path("session.json")
 QUEUE_FILE = Path("toast_queue.json")
-TOAST_DONE_FILE = Path("toast_done.json")  # кто уже выступил в эту сессию
-TABLE_FILE = Path("table_photo.json")       # file_id фото карты столов
+TOAST_DONE_FILE = Path("toast_done.json")
+TABLE_FILE = Path("table_photo.json")
+QUIZ_JSON = Path("quiz.json")
+QUIZ_STATE_FILE = Path("quiz_state.json")
 
 # Настройка логирования
 logging.basicConfig(
@@ -93,6 +103,78 @@ def is_admin(user_id: int) -> bool:
     return ADMIN_ID != 0 and user_id == ADMIN_ID
 
 
+# ──────────────────────────── КВИЗ ──────────────────────────────────────────
+
+# Состояние квиза — хранится в памяти
+quiz_state: dict = {
+    "active": False,
+    "show_results": False,
+    "current_question": 0,
+    "participants": {},       # str(user_id) → {name, answers:[bool], score:int}
+    "answered_current": [],   # str(user_id) кто уже ответил на текущий вопрос
+}
+
+# Все пользователи кто когда-либо писал боту: user_id → chat_id
+known_users: dict = {}
+
+
+def register_user(user_id: int, chat_id: int, name: str) -> None:
+    """Регистрирует пользователя в known_users и participants квиза."""
+    known_users[user_id] = chat_id
+    uid = str(user_id)
+    if uid not in quiz_state["participants"]:
+        quiz_state["participants"][uid] = {
+            "name": name,
+            "answers": [],
+            "score": 0,
+        }
+
+
+def load_quiz_questions() -> list:
+    if not QUIZ_JSON.exists():
+        return []
+    try:
+        return json.loads(QUIZ_JSON.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error("Ошибка чтения quiz.json: %s", e)
+        return []
+
+
+def save_quiz_state(questions: list) -> None:
+    """Сохраняет публичное состояние квиза для веб-стены."""
+    q_idx = quiz_state["current_question"]
+    current_q = questions[q_idx] if q_idx < len(questions) else None
+    participants = quiz_state["participants"]
+
+    leaderboard = sorted(
+        [{"name": v["name"], "score": v["score"], "total": q_idx}
+         for v in participants.values()],
+        key=lambda x: x["score"],
+        reverse=True,
+    )[:10]
+
+    out = {
+        "active": quiz_state["active"],
+        "show_results": quiz_state["show_results"],
+        "current_question": q_idx + 1,
+        "total_questions": len(questions),
+        "question_text": current_q["question"] if current_q else "",
+        "options": current_q["options"] if current_q else [],
+        "answered_count": len(quiz_state["answered_current"]),
+        "total_participants": len(participants),
+        "leaderboard": leaderboard,
+    }
+    QUIZ_STATE_FILE.write_text(
+        json.dumps(out, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def init_quiz_state_file() -> None:
+    if not QUIZ_STATE_FILE.exists():
+        save_quiz_state(load_quiz_questions())
+
+
 # ─────────────────────── очередь тостов ────────────────────────────────────
 
 def load_queue() -> list:
@@ -135,11 +217,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start — приветственное сообщение."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
+    register_user(user.id, update.effective_chat.id, user.first_name)
     await update.message.reply_text(
         f"👰🤵 Привет, {name}! Рады видеть тебя на свадьбе Тани и Никиты! 🎉\n\n"
         "Этот бот поможет тебе участвовать в празднике:\n\n"
         "📸 Хочешь поделиться фото?\n"
         "Просто отправь фотографию сюда — она тут же появится на большом экране в зале!\n\n"
+        "🎯 Квиз про жениха и невесту!\n"
+        "В определённый момент вечера здесь начнётся викторина — "
+        "ответы приходят прямо в бот, результаты видны на экране!\n\n"
         "🪑 Где моё место?\n"
         "Нажми кнопку «Карта рассадки» в меню внизу экрана\n\n"
         "📅 Что будет дальше?\n"
@@ -494,6 +580,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     user = update.effective_user
     name = user.full_name if user else "Гость"
+    register_user(user.id, update.effective_chat.id, user.first_name)
 
     # Если админ отправил фото с подписью /settable — сохраняем как карту столов
     if is_admin(user.id):
@@ -572,6 +659,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Обрабатывает текст: сохраняет подпись и публикует фото, или просит прислать фото."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
+    register_user(user.id, update.effective_chat.id, user.first_name)
     text = update.message.text.strip()
 
     if user.id in pending_caption:
@@ -591,6 +679,227 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_text(
         "📸 Пришли мне фото! Просто прикрепи снимок к сообщению и отправь."
     )
+
+
+# ──────────────────────────── КОМАНДЫ КВИЗА ─────────────────────────────────
+
+async def _broadcast_question(context, questions: list, q_idx: int) -> int:
+    """Разослать вопрос всем известным пользователям. Вернуть кол-во доставок."""
+    q = questions[q_idx]
+    keyboard = [
+        [InlineKeyboardButton(f"{i+1}. {opt}", callback_data=f"quiz:{q_idx}:{i}")]
+        for i, opt in enumerate(q["options"])
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+    text = f"❓ *Вопрос {q_idx + 1} из {len(questions)}*\n\n{q['question']}"
+    sent = 0
+    for chat_id in known_users.values():
+        try:
+            await context.bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+            sent += 1
+        except Exception as e:
+            logger.warning("Не удалось отправить вопрос в чат %s: %s", chat_id, e)
+    return sent
+
+
+async def _broadcast_text(context, text: str) -> None:
+    """Разослать текстовое сообщение всем известным пользователям."""
+    for chat_id in known_users.values():
+        try:
+            await context.bot.send_message(chat_id, text, parse_mode="Markdown")
+        except Exception as e:
+            logger.warning("Не удалось отправить сообщение в чат %s: %s", chat_id, e)
+
+
+async def cmd_startquiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    questions = load_quiz_questions()
+    if not questions:
+        await update.message.reply_text(
+            "❌ Файл quiz.json не найден или пустой. Создайте файл с вопросами."
+        )
+        return
+
+    quiz_state["active"] = True
+    quiz_state["show_results"] = False
+    quiz_state["current_question"] = 0
+    quiz_state["answered_current"] = []
+    for uid in quiz_state["participants"]:
+        quiz_state["participants"][uid]["answers"] = []
+        quiz_state["participants"][uid]["score"] = 0
+
+    save_quiz_state(questions)
+    n = await _broadcast_question(context, questions, 0)
+    await update.message.reply_text(
+        f"🎯 Квиз начат! Вопрос 1 разослан {n} гостям.\n"
+        f"Всего вопросов: {len(questions)}\n\n"
+        "Когда гости ответят — /nextquestion для следующего вопроса."
+    )
+    logger.info("Квиз начат, вопрос 1 разослан %d гостям", n)
+
+
+async def cmd_nextquestion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    if not quiz_state["active"]:
+        await update.message.reply_text("❌ Квиз не активен. Запустите /startquiz")
+        return
+
+    questions = load_quiz_questions()
+    q_idx = quiz_state["current_question"]
+
+    # Показываем правильный ответ на текущий вопрос
+    prev_q = questions[q_idx]
+    correct_text = prev_q["options"][prev_q["correct"]]
+    answered = len(quiz_state["answered_current"])
+    total = len(quiz_state["participants"])
+    await _broadcast_text(
+        context,
+        f"✅ Правильный ответ на вопрос {q_idx + 1}:\n*{correct_text}*\n\n"
+        f"Ответили: {answered} из {total}",
+    )
+
+    next_idx = q_idx + 1
+    if next_idx >= len(questions):
+        await update.message.reply_text(
+            f"🏁 Все {len(questions)} вопросов заданы!\n"
+            "Напишите /results чтобы показать финальный лидерборд."
+        )
+        return
+
+    quiz_state["current_question"] = next_idx
+    quiz_state["answered_current"] = []
+    save_quiz_state(questions)
+
+    n = await _broadcast_question(context, questions, next_idx)
+    await update.message.reply_text(
+        f"➡️ Вопрос {next_idx + 1} из {len(questions)} разослан {n} гостям."
+    )
+
+
+async def cmd_results(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+
+    questions = load_quiz_questions()
+    total_q = len(questions)
+    participants = quiz_state["participants"]
+
+    sorted_p = sorted(participants.items(), key=lambda x: x[1]["score"], reverse=True)
+
+    medals = ["🥇", "🥈", "🥉"]
+    lines = ["🏆 *ИТОГИ КВИЗА*\n"]
+    for i, (uid, data) in enumerate(sorted_p):
+        medal = medals[i] if i < 3 else f"{i + 1}."
+        lines.append(f"{medal} {data['name']} — {data['score']} из {total_q}")
+    result_text = "\n".join(lines) + "\n\nСпасибо всем! 🎉"
+
+    # Разослать всем участникам итог + личный результат
+    for uid, data in participants.items():
+        chat_id = known_users.get(int(uid))
+        if chat_id:
+            personal = f"\n\nТвой результат: *{data['score']} из {total_q}* 🎯"
+            try:
+                await context.bot.send_message(
+                    chat_id, result_text + personal, parse_mode="Markdown"
+                )
+            except Exception as e:
+                logger.warning("Не удалось отправить результаты в чат %s: %s", chat_id, e)
+
+    quiz_state["active"] = False
+    quiz_state["show_results"] = True
+
+    # Финальный лидерборд для стены — все участники
+    q_idx = quiz_state["current_question"]
+    leaderboard_wall = [
+        {"name": v["name"], "score": v["score"], "total": total_q}
+        for _, v in sorted_p
+    ]
+    QUIZ_STATE_FILE.write_text(
+        json.dumps({
+            "active": False,
+            "show_results": True,
+            "current_question": q_idx + 1,
+            "total_questions": total_q,
+            "question_text": "",
+            "options": [],
+            "answered_count": 0,
+            "total_participants": len(participants),
+            "leaderboard": leaderboard_wall,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    await update.message.reply_text("✅ Результаты отправлены всем участникам. Стена показывает лидерборд.")
+
+
+async def cmd_stopquiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    quiz_state["active"] = False
+    quiz_state["show_results"] = False
+    quiz_state["current_question"] = 0
+    quiz_state["answered_current"] = []
+    save_quiz_state(load_quiz_questions())
+    await update.message.reply_text("🛑 Квиз остановлен. Стена вернётся к показу фото.")
+
+
+async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обрабатывает нажатие кнопки ответа на вопрос квиза."""
+    query = update.callback_query
+    await query.answer()
+
+    user = query.from_user
+    register_user(user.id, query.message.chat_id, user.first_name)
+
+    if not quiz_state["active"]:
+        await context.bot.send_message(query.message.chat_id, "Квиз уже завершён.")
+        return
+
+    _, q_idx_str, ans_idx_str = query.data.split(":")
+    q_idx = int(q_idx_str)
+    ans_idx = int(ans_idx_str)
+
+    if q_idx != quiz_state["current_question"]:
+        await context.bot.send_message(
+            query.message.chat_id, "⏩ Этот вопрос уже не активен."
+        )
+        return
+
+    uid = str(user.id)
+    if uid in quiz_state["answered_current"]:
+        await context.bot.send_message(
+            query.message.chat_id, "Ты уже ответил на этот вопрос!"
+        )
+        return
+
+    questions = load_quiz_questions()
+    if q_idx >= len(questions):
+        return
+
+    correct_idx = questions[q_idx]["correct"]
+    is_correct = ans_idx == correct_idx
+
+    quiz_state["answered_current"].append(uid)
+    if uid not in quiz_state["participants"]:
+        quiz_state["participants"][uid] = {"name": user.first_name, "answers": [], "score": 0}
+    quiz_state["participants"][uid]["answers"].append(is_correct)
+    if is_correct:
+        quiz_state["participants"][uid]["score"] += 1
+
+    save_quiz_state(questions)
+
+    correct_text = questions[q_idx]["options"][correct_idx]
+    if is_correct:
+        response = "✅ Верно!"
+    else:
+        response = f"❌ Неверно. Правильный ответ: *{correct_text}*"
+
+    await context.bot.send_message(query.message.chat_id, response, parse_mode="Markdown")
 
 
 # ──────────────────────────── запуск бота ───────────────────────────────────
@@ -613,13 +922,17 @@ async def setup_commands(app: Application) -> None:
 
     # Команды для администратора (включают всё гостевое + управление)
     admin_commands = guest_commands + [
-        BotCommand("settable",     "🗺 Загрузить карту столов"),
-        BotCommand("queue",        "📋 Список очереди тостов"),
-        BotCommand("nexttoast",    "➡️ Следующий тост"),
-        BotCommand("clearqueue",   "🗑 Очистить очередь тостов"),
-        BotCommand("status",       "📊 Статус текущей сессии фото"),
-        BotCommand("newsession",   "🆕 Начать новую сессию фото"),
-        BotCommand("clearsession", "🗑 Удалить фото сессии"),
+        BotCommand("settable",      "🗺 Загрузить карту столов"),
+        BotCommand("queue",         "📋 Список очереди тостов"),
+        BotCommand("nexttoast",     "➡️ Следующий тост"),
+        BotCommand("clearqueue",    "🗑 Очистить очередь тостов"),
+        BotCommand("status",        "📊 Статус текущей сессии фото"),
+        BotCommand("newsession",    "🆕 Начать новую сессию фото"),
+        BotCommand("clearsession",  "🗑 Удалить фото сессии"),
+        BotCommand("startquiz",     "🎯 Начать квиз"),
+        BotCommand("nextquestion",  "➡️ Следующий вопрос квиза"),
+        BotCommand("results",       "🏆 Показать итоги квиза"),
+        BotCommand("stopquiz",      "🛑 Остановить квиз"),
     ]
 
     # Устанавливаем гостевое меню для всех личных чатов
@@ -649,9 +962,12 @@ def main() -> None:
     # Инициализируем сессию при первом запуске
     load_session()
 
+    # Создаём quiz_state.json если не существует
+    init_quiz_state_file()
+
     app = Application.builder().token(BOT_TOKEN).post_init(setup_commands).build()
 
-    # Регистрируем обработчики команд
+    # ── Общие команды ──────────────────────────────────────────────────────────
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("newsession", cmd_new_session))
@@ -664,28 +980,35 @@ def main() -> None:
     app.add_handler(CommandHandler("table", cmd_table))
     app.add_handler(CommandHandler("settable", cmd_set_table))
 
-    # Пропуск подписи
+    # Пропуск подписи к фото
     app.add_handler(CommandHandler("skip", cmd_skip))
 
-    # Очередь тостов — гостевые команды
+    # ── Очередь тостов ────────────────────────────────────────────────────────
     app.add_handler(CommandHandler("toast", cmd_toast))
     app.add_handler(CommandHandler("canceltoast", cmd_cancel_toast))
-
-    # Очередь тостов — команды администратора
     app.add_handler(CommandHandler("queue", cmd_queue))
     app.add_handler(CommandHandler("nexttoast", cmd_next_toast))
     app.add_handler(CommandHandler("clearqueue", cmd_clear_queue))
 
-    # Обработчик фото
+    # ── Квиз (только для администратора) ─────────────────────────────────────
+    app.add_handler(CommandHandler("startquiz", cmd_startquiz))
+    app.add_handler(CommandHandler("nextquestion", cmd_nextquestion))
+    app.add_handler(CommandHandler("results", cmd_results))
+    app.add_handler(CommandHandler("stopquiz", cmd_stopquiz))
+
+    # Ответы гостей на вопросы квиза (InlineKeyboard callback)
+    app.add_handler(CallbackQueryHandler(handle_quiz_answer, pattern=r"^quiz:"))
+
+    # ── Медиа и текст ─────────────────────────────────────────────────────────
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    # Обработчик для всего остального (текст, стикеры и т.д.)
-    # Текстовые сообщения — подписи к фото или подсказка отправить фото
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    # Всё остальное (стикеры, голосовые и т.д.)
-    app.add_handler(MessageHandler(filters.ALL & ~filters.PHOTO & ~filters.TEXT & ~filters.COMMAND, handle_text))
+    # Стикеры, голосовые и т.д. — тот же ответ «пришли фото»
+    app.add_handler(MessageHandler(
+        filters.ALL & ~filters.PHOTO & ~filters.TEXT & ~filters.COMMAND,
+        handle_text,
+    ))
 
-    logger.info("Бот запущен. Ожидаю фото от гостей...")
+    logger.info("Бот запущен. Ожидаю фото и команды администратора...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
