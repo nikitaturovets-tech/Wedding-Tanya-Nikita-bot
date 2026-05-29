@@ -43,6 +43,7 @@ TOAST_DONE_FILE = Path("toast_done.json")
 QUIZ_JSON = Path("quiz.json")
 QUIZ_STATE_FILE = Path("quiz_state.json")
 WALL_MODE_FILE = Path("wall_mode.json")
+KNOWN_USERS_FILE = Path("known_users.json")
 
 # Настройка логирования
 logging.basicConfig(
@@ -118,8 +119,41 @@ quiz_state: dict = {
 known_users: dict = {}
 
 
+def load_known_users() -> None:
+    """Загружает known_users и participants из файла при старте бота."""
+    if not KNOWN_USERS_FILE.exists():
+        return
+    try:
+        data = json.loads(KNOWN_USERS_FILE.read_text(encoding="utf-8"))
+        for uid_str, entry in data.items():
+            uid = int(uid_str)
+            known_users[uid] = entry["chat_id"]
+            if uid_str not in quiz_state["participants"]:
+                quiz_state["participants"][uid_str] = {
+                    "name": entry["name"],
+                    "answers": [],
+                    "score": 0,
+                }
+        logger.info("Загружено %d пользователей из known_users.json", len(known_users))
+    except Exception as e:
+        logger.error("Ошибка загрузки known_users.json: %s", e)
+
+
+def save_known_users() -> None:
+    """Сохраняет known_users на диск."""
+    data = {
+        str(uid): {"chat_id": chat_id, "name": quiz_state["participants"].get(str(uid), {}).get("name", "")}
+        for uid, chat_id in known_users.items()
+    }
+    KNOWN_USERS_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def register_user(user_id: int, chat_id: int, name: str) -> None:
     """Регистрирует пользователя в known_users и participants квиза."""
+    is_new = user_id not in known_users
     known_users[user_id] = chat_id
     uid = str(user_id)
     if uid not in quiz_state["participants"]:
@@ -128,6 +162,9 @@ def register_user(user_id: int, chat_id: int, name: str) -> None:
             "answers": [],
             "score": 0,
         }
+    # Сохраняем на диск только при появлении нового пользователя
+    if is_new:
+        save_known_users()
 
 
 def load_quiz_questions() -> list:
@@ -943,6 +980,9 @@ def main() -> None:
 
     # Создаём quiz_state.json если не существует
     init_quiz_state_file()
+
+    # Загружаем известных пользователей с диска (переживают рестарт бота)
+    load_known_users()
 
     app = Application.builder().token(BOT_TOKEN).post_init(setup_commands).build()
 

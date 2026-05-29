@@ -3,6 +3,7 @@ photos/
 photos_meta.json
 session.json
 quiz_state.json
+known_users.json
 __pycache__/
 *.pyc
 *.pyo
