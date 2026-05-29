@@ -19,11 +19,13 @@ from pathlib import Path
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
-PHOTOS_DIR      = Path("photos")
-META_FILE       = Path("photos_meta.json")
-SESSION_FILE    = Path("session.json")
-QUIZ_STATE_FILE = Path("quiz_state.json")
-WALL_FILE       = Path("wall.html")
+PHOTOS_DIR       = Path("photos")
+PRESET_DIR       = Path("photos_preset")
+META_FILE        = Path("photos_meta.json")
+SESSION_FILE     = Path("session.json")
+QUIZ_STATE_FILE  = Path("quiz_state.json")
+WALL_MODE_FILE   = Path("wall_mode.json")
+WALL_FILE        = Path("wall.html")
 PORT = 8080
 
 logging.basicConfig(
@@ -127,6 +129,10 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_meta()
         elif path == "/quiz":
             self.serve_quiz()
+        elif path == "/mode":
+            self.serve_mode()
+        elif path == "/preset-list":
+            self.serve_preset_list()
         elif path == "/events":
             self.serve_events()
         elif path == "/download":
@@ -134,6 +140,9 @@ class WallHandler(BaseHTTPRequestHandler):
         elif path.startswith("/photo/"):
             filename = path[len("/photo/"):]
             self.serve_photo(filename)
+        elif path.startswith("/preset/"):
+            filename = path[len("/preset/"):]
+            self.serve_preset_photo(filename)
         else:
             self.send_error(404)
 
@@ -179,6 +188,71 @@ class WallHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def serve_mode(self):
+        """
+        Отдаёт wall_mode.json — текущий режим стены: slideshow или wall.
+        Если файл не существует — возвращает режим по умолчанию (wall).
+        """
+        if not WALL_MODE_FILE.exists():
+            data = {"mode": "wall"}
+        else:
+            try:
+                with WALL_MODE_FILE.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {"mode": "wall"}
+
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_preset_list(self):
+        """
+        Возвращает список файлов из photos_preset/ в формате JSON.
+        Используется стеной для загрузки слайдшоу.
+        """
+        PRESET_DIR.mkdir(exist_ok=True)
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        files = sorted(
+            f.name for f in PRESET_DIR.iterdir()
+            if f.is_file() and f.suffix.lower() in exts
+        )
+        body = json.dumps(files, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_preset_photo(self, filename: str):
+        """Отдаёт файл из папки photos_preset/."""
+        if "/" in filename or "\\" in filename or ".." in filename:
+            self.send_error(400)
+            return
+        filepath = PRESET_DIR / filename
+        if not filepath.exists():
+            self.send_error(404)
+            return
+        try:
+            content = filepath.read_bytes()
+            mime_type, _ = mimetypes.guess_type(str(filepath))
+            if not mime_type:
+                mime_type = "image/jpeg"
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(content)
+        except OSError as e:
+            logger.error("Ошибка чтения preset фото %s: %s", filename, e)
+            self.send_error(500)
 
     def serve_quiz(self):
         """
@@ -302,6 +376,7 @@ class WallHandler(BaseHTTPRequestHandler):
 def main():
     """Запускает HTTP-сервер с поддержкой SSE."""
     PHOTOS_DIR.mkdir(exist_ok=True)
+    PRESET_DIR.mkdir(exist_ok=True)
 
     # Запускаем фоновый поток-наблюдатель за новыми фото
     watcher = threading.Thread(target=_watcher_thread, daemon=True)

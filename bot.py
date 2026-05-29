@@ -42,6 +42,7 @@ QUEUE_FILE = Path("toast_queue.json")
 TOAST_DONE_FILE = Path("toast_done.json")
 QUIZ_JSON = Path("quiz.json")
 QUIZ_STATE_FILE = Path("quiz_state.json")
+WALL_MODE_FILE = Path("wall_mode.json")
 
 # Настройка логирования
 logging.basicConfig(
@@ -622,6 +623,43 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+# ──────────────────────────── РЕЖИМ СТЕНЫ ───────────────────────────────────
+
+def set_wall_mode(mode: str) -> None:
+    """Сохраняет текущий режим стены: 'slideshow' или 'wall'."""
+    WALL_MODE_FILE.write_text(
+        json.dumps({"mode": mode}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+async def cmd_slideshow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Переключить стену в режим слайдшоу (предзагруженные фото)."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    set_wall_mode("slideshow")
+    await update.message.reply_text(
+        "🖼 Стена переключена в режим *Слайдшоу*.\n"
+        "Показываются фото из папки `photos_preset/`.",
+        parse_mode="Markdown",
+    )
+    logger.info("Режим стены: slideshow")
+
+
+async def cmd_wallmode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Переключить стену в режим фото от гостей."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    set_wall_mode("wall")
+    await update.message.reply_text(
+        "📸 Стена переключена в режим *Фото гостей*.",
+        parse_mode="Markdown",
+    )
+    logger.info("Режим стены: wall")
+
+
 # ──────────────────────────── КОМАНДЫ КВИЗА ─────────────────────────────────
 
 async def _broadcast_question(context, questions: list, q_idx: int) -> int:
@@ -865,6 +903,8 @@ async def setup_commands(app: Application) -> None:
         BotCommand("queue",         "📋 Список очереди тостов"),
         BotCommand("nexttoast",     "➡️ Следующий тост"),
         BotCommand("clearqueue",    "🗑 Очистить очередь тостов"),
+        BotCommand("slideshow",     "🖼 Стена: режим слайдшоу"),
+        BotCommand("wallmode",      "📸 Стена: режим фото гостей"),
         BotCommand("status",        "📊 Статус текущей сессии фото"),
         BotCommand("newsession",    "🆕 Начать новую сессию фото"),
         BotCommand("clearsession",  "🗑 Удалить фото сессии"),
@@ -924,6 +964,10 @@ def main() -> None:
     app.add_handler(CommandHandler("queue", cmd_queue))
     app.add_handler(CommandHandler("nexttoast", cmd_next_toast))
     app.add_handler(CommandHandler("clearqueue", cmd_clear_queue))
+
+    # ── Режим стены (только для администратора) ──────────────────────────────
+    app.add_handler(CommandHandler("slideshow", cmd_slideshow))
+    app.add_handler(CommandHandler("wallmode", cmd_wallmode))
 
     # ── Квиз (только для администратора) ─────────────────────────────────────
     app.add_handler(CommandHandler("startquiz", cmd_startquiz))

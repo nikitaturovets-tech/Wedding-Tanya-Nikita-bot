@@ -413,6 +413,71 @@
       animation: fadeUp 0.5s 0.8s both;
     }
 
+    /* ══════════════════════════════════════════════
+       РЕЖИМ СЛАЙДШОУ
+       ══════════════════════════════════════════════ */
+    #slideshow-mode {
+      position: fixed; inset: 0; z-index: 85;
+      background: #000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.7s ease;
+    }
+    #slideshow-mode.visible {
+      display: flex;
+      opacity: 1;
+    }
+
+    /* Два слоя для плавного кроссфейда */
+    .slide-layer {
+      position: absolute; inset: 0;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0;
+      transition: opacity 1.2s ease;
+    }
+    .slide-layer.active { opacity: 1; }
+
+    /* Тихая подпись снизу */
+    #slideshow-caption {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 80px 40px 30px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      text-align: center;
+      pointer-events: none;
+    }
+
+    #slideshow-title {
+      font-size: clamp(2rem, 5vw, 4rem);
+      color: var(--gold);
+      letter-spacing: 0.15em;
+      text-shadow: 0 0 60px rgba(240,192,64,0.4);
+      animation: glow 4s ease-in-out infinite;
+    }
+
+    #slideshow-subtitle {
+      margin-top: 8px;
+      color: rgba(240,234,216,0.55);
+      font-size: clamp(0.8rem, 1.5vw, 1.1rem);
+      letter-spacing: 0.2em;
+    }
+
+    /* Точки-индикаторы текущего слайда */
+    #slideshow-dots {
+      position: absolute; bottom: 14px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 8px;
+    }
+    .slide-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(240,192,64,0.3);
+      transition: background 0.4s;
+    }
+    .slide-dot.active { background: var(--gold); }
+
     /* ── Индикатор подключения ── */
     #status-dot {
       position: fixed; bottom: 10px; right: 14px;
@@ -453,6 +518,21 @@
     </div>
     <div class="sp-badge" id="sp-badge">✨ Новое фото!</div>
   </div>
+</div>
+
+<!-- ═══════════════ РЕЖИМ СЛАЙДШОУ ═══════════════ -->
+<div id="slideshow-mode">
+  <!-- Два слоя для плавного кроссфейда между фото -->
+  <div class="slide-layer" id="slide-a"></div>
+  <div class="slide-layer" id="slide-b"></div>
+
+  <div id="slideshow-caption">
+    <!-- ✏️ Замените имена здесь -->
+    <div id="slideshow-title">💒 Таня &amp; Никита</div>
+    <div id="slideshow-subtitle">28 · 06 · 2025</div>
+  </div>
+
+  <div id="slideshow-dots"></div>
 </div>
 
 <!-- ═══════════════ РЕЖИМ КВИЗА ═══════════════ -->
@@ -838,12 +918,145 @@
   }
 
   // ═══════════════════════════════════════════════════════
+  // РЕЖИМ СЛАЙДШОУ — логика
+  // ═══════════════════════════════════════════════════════
+  const slideshowEl  = document.getElementById('slideshow-mode');
+  const slideA       = document.getElementById('slide-a');
+  const slideB       = document.getElementById('slide-b');
+  const slideDots    = document.getElementById('slideshow-dots');
+
+  let slideshowFiles   = [];   // список файлов из /preset-list
+  let slideIdx         = 0;    // текущий индекс слайда
+  let slideTimer       = null; // setInterval для авто-смены
+  let slideActiveLayer = 'a';  // какой слой сейчас видим
+  let prevModeStr      = '';   // для детекции изменений
+
+  const SLIDE_INTERVAL = 5000; // 5 секунд на слайд
+
+  async function fetchMode() {
+    try {
+      const res = await fetch('/mode');
+      if (!res.ok) return;
+      const data = await res.json();
+      const modeStr = JSON.stringify(data);
+      if (modeStr === prevModeStr) return;
+      prevModeStr = modeStr;
+
+      if (data.mode === 'slideshow') {
+        await startSlideshow();
+      } else {
+        stopSlideshow();
+      }
+    } catch (e) {
+      console.error('Ошибка /mode:', e);
+    }
+  }
+
+  async function startSlideshow() {
+    // Загружаем список файлов
+    try {
+      const res = await fetch('/preset-list');
+      slideshowFiles = await res.json();
+    } catch (e) {
+      console.error('Ошибка /preset-list:', e);
+      slideshowFiles = [];
+    }
+
+    if (slideshowFiles.length === 0) return; // нечего показывать
+
+    // Показываем слой слайдшоу
+    slideshowEl.style.display = 'flex';
+    requestAnimationFrame(() => slideshowEl.classList.add('visible'));
+
+    // Останавливаем спотлайт гостей
+    spotlight.classList.remove('active');
+    spotlightBusy = true;
+
+    // Строим точки-индикаторы
+    buildDots();
+
+    // Показываем первый слайд сразу
+    slideIdx = 0;
+    showSlide(slideIdx);
+
+    // Запускаем авто-смену
+    clearInterval(slideTimer);
+    slideTimer = setInterval(nextSlide, SLIDE_INTERVAL);
+  }
+
+  function stopSlideshow() {
+    clearInterval(slideTimer);
+    slideTimer = null;
+    slideshowEl.classList.remove('visible');
+    setTimeout(() => {
+      slideshowEl.style.display = 'none';
+    }, 700);
+
+    // Возобновляем спотлайт гостей
+    spotlightBusy = false;
+    processSpotlight();
+  }
+
+  function buildDots() {
+    slideDots.innerHTML = '';
+    slideshowFiles.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'slide-dot' + (i === 0 ? ' active' : '');
+      slideDots.appendChild(d);
+    });
+  }
+
+  function updateDots() {
+    slideDots.querySelectorAll('.slide-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === slideIdx);
+    });
+  }
+
+  function showSlide(idx) {
+    if (slideshowFiles.length === 0) return;
+    const url = '/preset/' + encodeURIComponent(slideshowFiles[idx]);
+
+    // Кроссфейд: пишем в неактивный слой, потом меняем видимость
+    if (slideActiveLayer === 'a') {
+      // Готовим слой B
+      slideB.style.backgroundImage = `url('${url}')`;
+      // Ждём пока картинка загрузится
+      const img = new Image();
+      img.onload = () => {
+        slideB.classList.add('active');
+        slideA.classList.remove('active');
+        slideActiveLayer = 'b';
+        updateDots();
+      };
+      img.src = url;
+    } else {
+      // Готовим слой A
+      slideA.style.backgroundImage = `url('${url}')`;
+      const img = new Image();
+      img.onload = () => {
+        slideA.classList.add('active');
+        slideB.classList.remove('active');
+        slideActiveLayer = 'a';
+        updateDots();
+      };
+      img.src = url;
+    }
+  }
+
+  function nextSlide() {
+    if (slideshowFiles.length === 0) return;
+    slideIdx = (slideIdx + 1) % slideshowFiles.length;
+    showSlide(slideIdx);
+  }
+
+  // ═══════════════════════════════════════════════════════
   // ОПРОСЫ И SSE
   // ═══════════════════════════════════════════════════════
 
   // Первый запрос сразу
   fetchPhotos();
   fetchQuiz();
+  fetchMode();
 
   // SSE: мгновенное обновление при новом фото
   function connectSSE() {
@@ -856,6 +1069,7 @@
   // Резервный опрос каждые 3 секунды
   setInterval(fetchPhotos, 3000);
   setInterval(fetchQuiz,   3000);
+  setInterval(fetchMode,   3000);
 </script>
 </body>
 </html>
