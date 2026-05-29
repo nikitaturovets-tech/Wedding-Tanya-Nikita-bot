@@ -5,22 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>💒 Таня &amp; Никита — Свадебная стена</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0a0a0a;
-      --gold:     #f0c040;
-      --gold-dim: #a07820;
-      --card-bg:  #181818;
-      --text:     #f0ead8;
-      --muted:    #888;
-      --new:      #f0c040;
+      --bg:         #faf6f0;          /* тёплый кремовый фон */
+      --bg2:        #f3ece2;          /* чуть темнее для контраста */
+      --gold:       #b07d2a;          /* элегантное тёплое золото */
+      --gold-light: #d4a843;          /* светлее для акцентов */
+      --gold-dim:   #c9a96e;          /* приглушённое золото */
+      --rose:       #c2697a;          /* пыльная роза */
+      --rose-light: #e8b4bc;          /* светло-розовый */
+      --text:       #2a1f14;          /* тёплый тёмно-коричневый */
+      --muted:      #8a7868;          /* приглушённый серо-коричневый */
+      --surface:    #ffffff;          /* карточки */
+      --border:     #e4d8cc;          /* мягкая граница */
     }
 
     body {
       background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(212,168,67,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(194,105,122,0.06) 0%, transparent 60%);
       color: var(--text);
-      font-family: 'Georgia', 'Times New Roman', serif;
+      font-family: 'Cormorant Garamond', 'Georgia', serif;
       height: 100vh;
       overflow: hidden;
       display: flex;
@@ -40,54 +49,57 @@
       overflow: hidden;
       position: relative;
       z-index: 2;
-      transition: opacity 0.6s ease;
     }
 
     /* Заголовок */
     header {
       text-align: center;
-      padding: 14px 20px 6px;
+      padding: 16px 20px 6px;
       flex-shrink: 0;
     }
 
     header h1 {
-      font-size: clamp(1.6rem, 3.5vw, 2.6rem);
-      letter-spacing: 0.12em;
+      font-size: clamp(1.8rem, 3.8vw, 3rem);
+      font-weight: 600;
+      letter-spacing: 0.18em;
       color: var(--gold);
-      text-shadow: 0 0 30px rgba(240,192,64,0.35);
-      animation: glow 4s ease-in-out infinite;
+      animation: glow 5s ease-in-out infinite;
     }
 
     header p {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
       color: var(--muted);
-      font-size: clamp(0.65rem, 1.3vw, 0.9rem);
-      margin-top: 4px;
-      letter-spacing: 0.08em;
+      font-size: clamp(0.6rem, 1.2vw, 0.85rem);
+      margin-top: 5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
     }
 
     .counter {
       display: inline-block;
-      margin-top: 5px;
-      background: rgba(240,192,64,0.1);
-      border: 1px solid rgba(240,192,64,0.3);
+      margin-top: 6px;
+      background: rgba(176,125,42,0.08);
+      border: 1px solid rgba(176,125,42,0.25);
       border-radius: 20px;
       padding: 2px 14px;
-      font-size: clamp(0.6rem, 1.1vw, 0.8rem);
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(0.55rem, 1vw, 0.75rem);
       color: var(--gold);
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
     }
 
     @keyframes glow {
-      0%,100% { text-shadow: 0 0 20px rgba(240,192,64,0.25); }
-      50%      { text-shadow: 0 0 50px rgba(240,192,64,0.55), 0 0 80px rgba(240,192,64,0.2); }
+      0%,100% { text-shadow: 0 1px 12px rgba(176,125,42,0.2); }
+      50%      { text-shadow: 0 2px 28px rgba(176,125,42,0.45), 0 0 60px rgba(194,105,122,0.12); }
     }
 
     .divider {
       text-align: center;
-      color: var(--gold-dim);
+      color: var(--rose-light);
       font-size: 0.8rem;
-      letter-spacing: 0.4em;
-      margin: 3px 0;
+      letter-spacing: 0.5em;
+      margin: 3px 0 1px;
     }
 
     /* Сетка фото */
@@ -104,29 +116,32 @@
     /* Карточка */
     .card {
       position: relative;
-      border-radius: 10px;
+      border-radius: 12px;
       overflow: hidden;
-      background: var(--card-bg);
+      background: var(--surface);
       aspect-ratio: 1 / 1;
       animation: cardIn 0.65s cubic-bezier(0.34,1.5,0.64,1) both;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.6);
-      border: 1px solid #222;
-      transition: border-color 0.3s;
+      box-shadow: 0 3px 14px rgba(42,31,20,0.1), 0 1px 4px rgba(42,31,20,0.06);
+      border: 1px solid var(--border);
+      transition: border-color 0.3s, box-shadow 0.3s;
     }
 
-    .card.new-card { border-color: var(--gold); }
+    .card.new-card {
+      border-color: var(--rose);
+      box-shadow: 0 3px 18px rgba(194,105,122,0.2), 0 1px 4px rgba(42,31,20,0.06);
+    }
 
     .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
     .card .caption {
       position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 28px 8px 6px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 28px 8px 7px;
+      background: linear-gradient(transparent, rgba(42,31,20,0.72));
       display: flex; flex-direction: column; gap: 2px;
     }
 
     .card .photo-caption {
-      color: #ddd;
+      color: rgba(255,248,240,0.9);
       font-size: clamp(0.55rem, 1vw, 0.78rem);
       font-style: italic; line-height: 1.2;
     }
@@ -136,28 +151,34 @@
     }
 
     .card .guest-name {
-      color: var(--gold);
-      font-weight: bold;
+      color: #fde8c0;
+      font-weight: 600;
       font-size: clamp(0.55rem, 1vw, 0.78rem);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       max-width: 72%;
     }
 
-    .card .photo-time { color: var(--muted); font-size: 0.72em; }
-
-    .badge-new {
-      position: absolute; top: 6px; right: 6px;
-      background: var(--gold);
-      color: #0a0a0a;
-      font-size: 0.58rem; font-weight: bold;
-      padding: 2px 7px; border-radius: 20px;
-      letter-spacing: 0.04em;
-      animation: pulse 1.5s ease infinite;
+    .card .photo-time {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      color: rgba(255,240,220,0.65);
+      font-size: 0.68em;
     }
 
-    @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .badge-new {
+      position: absolute; top: 7px; right: 7px;
+      background: var(--rose);
+      color: #fff;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.56rem; font-weight: 500;
+      padding: 3px 8px; border-radius: 20px;
+      letter-spacing: 0.05em;
+      animation: pulse 1.8s ease infinite;
+    }
+
+    @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.55} }
     @keyframes cardIn {
-      from { opacity:0; transform: scale(0.82) translateY(14px); }
+      from { opacity:0; transform: scale(0.84) translateY(14px); }
       to   { opacity:1; transform: scale(1)    translateY(0);    }
     }
 
@@ -165,16 +186,20 @@
     #empty {
       display: none; flex-direction: column;
       align-items: center; justify-content: center;
-      flex: 1; gap: 14px; color: #555;
+      flex: 1; gap: 14px; color: var(--muted);
     }
     #empty .icon { font-size: 4.5rem; }
-    #empty p { font-size: 1rem; letter-spacing: 0.05em; }
+    #empty p {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      font-size: 1rem; letter-spacing: 0.08em;
+    }
 
     /* Спотлайт */
     #spotlight {
       position: fixed; inset: 0; z-index: 80;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.88);
+      background: rgba(42,31,20,0.84);
       opacity: 0; pointer-events: none;
       transition: opacity 0.5s ease;
     }
@@ -185,9 +210,9 @@
       max-width: min(84vh, 84vw);
       max-height: min(84vh, 84vw);
       width: 100%; height: 100%;
-      border-radius: 14px; overflow: hidden;
-      box-shadow: 0 0 0 2px var(--gold),
-                  0 8px 60px rgba(240,192,64,0.15);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 0 0 2px var(--rose-light),
+                  0 12px 60px rgba(42,31,20,0.5);
       animation: spIn 0.55s cubic-bezier(0.34,1.3,0.64,1) both;
     }
 
@@ -200,28 +225,29 @@
 
     #spotlight .sp-caption {
       position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 60px 20px 18px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      padding: 60px 20px 20px;
+      background: linear-gradient(transparent, rgba(42,31,20,0.88));
       text-align: center;
     }
 
     #spotlight .sp-text {
-      color: #e8dcc8;
+      color: #fdf0e0;
       font-size: clamp(1.2rem, 3vw, 2.2rem);
       font-style: italic; margin-bottom: 8px;
     }
 
     #spotlight .sp-name {
-      color: var(--gold);
+      color: #fde8c0;
       font-size: clamp(1rem, 2.5vw, 1.7rem);
-      font-weight: bold; letter-spacing: 0.08em;
+      font-weight: 600; letter-spacing: 0.1em;
     }
 
     #spotlight .sp-badge {
       position: absolute; top: 14px; right: 14px;
-      background: var(--gold); color: #0a0a0a;
-      font-size: 0.75rem; font-weight: bold;
-      padding: 3px 12px; border-radius: 20px;
+      background: var(--rose); color: #fff;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.72rem; font-weight: 500;
+      padding: 4px 13px; border-radius: 20px;
     }
 
     /* ══════════════════════════════════════════════
@@ -230,6 +256,9 @@
     #quiz-mode {
       position: fixed; inset: 0; z-index: 90;
       background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 15% 10%, rgba(212,168,67,0.1) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 90%, rgba(194,105,122,0.08) 0%, transparent 55%);
       display: none;
       flex-direction: column;
       align-items: center;
@@ -238,45 +267,40 @@
       opacity: 0;
       transition: opacity 0.6s ease;
     }
-    #quiz-mode.visible {
-      display: flex;
-      opacity: 1;
-    }
+    #quiz-mode.visible { display: flex; opacity: 1; }
 
-    /* Анимация появления блоков квиза */
     @keyframes fadeUp {
-      from { opacity:0; transform: translateY(20px); }
+      from { opacity:0; transform: translateY(18px); }
       to   { opacity:1; transform: translateY(0); }
     }
 
-    /* Шапка квиза */
     .quiz-header {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 26px;
       animation: fadeUp 0.5s 0.1s both;
     }
 
     .quiz-header .q-label {
-      font-size: clamp(1rem, 2vw, 1.4rem);
-      color: var(--gold-dim);
-      letter-spacing: 0.2em;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      font-size: clamp(0.75rem, 1.5vw, 1rem);
+      color: var(--muted);
+      letter-spacing: 0.3em;
       text-transform: uppercase;
       margin-bottom: 8px;
     }
 
     .quiz-header .q-progress {
       font-size: clamp(1.8rem, 4vw, 3rem);
-      font-weight: bold;
+      font-weight: 600;
       color: var(--gold);
       letter-spacing: 0.06em;
-      text-shadow: 0 0 40px rgba(240,192,64,0.4);
     }
 
-    /* Прогресс-бар вопроса */
     .progress-bar {
       width: 100%; max-width: 700px;
-      height: 4px;
-      background: #222;
+      height: 3px;
+      background: var(--border);
       border-radius: 2px;
       margin: 0 auto 28px;
       overflow: hidden;
@@ -284,35 +308,35 @@
     }
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+      background: linear-gradient(90deg, var(--gold-dim), var(--rose));
       border-radius: 2px;
       transition: width 0.6s ease;
     }
 
-    /* Текст вопроса */
     .quiz-question {
       text-align: center;
       font-size: clamp(1.3rem, 3vw, 2.4rem);
-      line-height: 1.35;
+      line-height: 1.4;
       color: var(--text);
       max-width: 860px;
-      margin-bottom: 40px;
+      margin-bottom: 36px;
       animation: fadeUp 0.5s 0.2s both;
     }
 
-    /* Лидерборд во время вопроса */
     .quiz-leaderboard {
       width: 100%; max-width: 620px;
       animation: fadeUp 0.5s 0.3s both;
     }
 
     .lb-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 400;
       text-align: center;
       color: var(--gold);
-      font-size: clamp(0.9rem, 1.8vw, 1.3rem);
-      letter-spacing: 0.2em;
+      font-size: clamp(0.75rem, 1.5vw, 1rem);
+      letter-spacing: 0.25em;
       text-transform: uppercase;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .lb-row {
@@ -321,43 +345,45 @@
       gap: 12px;
       padding: 10px 18px;
       margin-bottom: 8px;
-      border-radius: 8px;
-      background: #111;
-      border: 1px solid #222;
-      transition: border-color 0.3s, background 0.3s;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: border-color 0.3s;
       animation: fadeUp 0.4s both;
     }
     .lb-row:nth-child(1) { animation-delay: 0.35s; }
     .lb-row:nth-child(2) { animation-delay: 0.42s; }
     .lb-row:nth-child(3) { animation-delay: 0.49s; }
 
-    .lb-row.gold-row   { border-color: #c8960a; background: #1a1500; }
-    .lb-row.silver-row { border-color: #707070; background: #111416; }
-    .lb-row.bronze-row { border-color: #804020; background: #140d08; }
+    .lb-row.gold-row   { border-color: var(--gold-dim);  background: #fdf8ee; }
+    .lb-row.silver-row { border-color: #c0b0a0;           background: #f8f4f0; }
+    .lb-row.bronze-row { border-color: var(--rose-light); background: #fdf2f4; }
 
     .lb-medal { font-size: 1.4rem; min-width: 28px; text-align: center; }
-    .lb-name  { flex: 1; font-size: clamp(0.9rem, 1.8vw, 1.25rem); }
+    .lb-name  { flex: 1; font-size: clamp(0.9rem, 1.8vw, 1.25rem); color: var(--text); }
 
     .lb-score {
-      font-size: clamp(0.85rem, 1.6vw, 1.1rem);
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(0.8rem, 1.5vw, 1rem);
       color: var(--gold);
-      font-weight: bold;
+      font-weight: 500;
       white-space: nowrap;
     }
 
-    .lb-spark { color: #f0c040; font-size: 0.9rem; }
+    .lb-spark { color: var(--rose); font-size: 0.9rem; }
 
-    /* Счётчик ответивших */
     .answered-count {
-      margin-top: 24px;
+      margin-top: 22px;
       text-align: center;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
       color: var(--muted);
-      font-size: clamp(0.85rem, 1.6vw, 1.1rem);
-      letter-spacing: 0.05em;
+      font-size: clamp(0.75rem, 1.4vw, 1rem);
+      letter-spacing: 0.08em;
       animation: fadeUp 0.5s 0.5s both;
     }
 
-    .answered-count span { color: var(--text); font-weight: bold; }
+    .answered-count span { color: var(--text); font-weight: 500; }
 
     /* ── Финальный лидерборд ── */
     #results-mode {
@@ -368,17 +394,20 @@
 
     .results-title {
       font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: 600;
       color: var(--gold);
-      letter-spacing: 0.1em;
-      text-shadow: 0 0 60px rgba(240,192,64,0.5);
-      margin-bottom: 8px;
+      letter-spacing: 0.12em;
+      margin-bottom: 6px;
     }
 
     .results-subtitle {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
       color: var(--muted);
-      font-size: clamp(0.85rem, 1.5vw, 1.1rem);
-      letter-spacing: 0.12em;
-      margin-bottom: 36px;
+      font-size: clamp(0.75rem, 1.4vw, 1rem);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
     }
 
     .results-row {
@@ -387,29 +416,30 @@
       gap: 14px;
       padding: 12px 22px;
       margin-bottom: 10px;
-      border-radius: 10px;
-      background: #111;
-      border: 1px solid #222;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
       animation: fadeUp 0.4s both;
     }
-    .results-row:nth-child(1) { animation-delay: 0.2s; border-color: #c8960a; background: #1a1500; }
-    .results-row:nth-child(2) { animation-delay: 0.28s; border-color: #606060; background: #111416; }
-    .results-row:nth-child(3) { animation-delay: 0.36s; border-color: #804020; background: #140d08; }
+    .results-row:nth-child(1) { animation-delay: 0.2s;  border-color: var(--gold-dim);  background: #fdf8ee; }
+    .results-row:nth-child(2) { animation-delay: 0.28s; border-color: #c0b0a0;           background: #f8f4f0; }
+    .results-row:nth-child(3) { animation-delay: 0.36s; border-color: var(--rose-light); background: #fdf2f4; }
     .results-row:nth-child(n+4) { animation-delay: calc(0.36s + (var(--i) - 3) * 0.06s); }
 
     .results-medal { font-size: 1.6rem; min-width: 30px; }
-    .results-name  { flex: 1; font-size: clamp(1rem, 2vw, 1.4rem); text-align: left; }
+    .results-name  { flex: 1; font-size: clamp(1rem, 2vw, 1.4rem); text-align: left; color: var(--text); }
     .results-score {
-      font-size: clamp(1rem, 2vw, 1.4rem);
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(0.9rem, 1.8vw, 1.2rem);
       color: var(--gold);
-      font-weight: bold;
+      font-weight: 500;
     }
 
     .results-thanks {
-      margin-top: 36px;
-      font-size: clamp(1.2rem, 2.5vw, 2rem);
-      color: var(--muted);
-      letter-spacing: 0.08em;
+      margin-top: 32px;
+      font-size: clamp(1.1rem, 2.2vw, 1.8rem);
+      color: var(--rose);
+      letter-spacing: 0.1em;
       animation: fadeUp 0.5s 0.8s both;
     }
 
@@ -418,19 +448,15 @@
        ══════════════════════════════════════════════ */
     #slideshow-mode {
       position: fixed; inset: 0; z-index: 85;
-      background: #000;
+      background: var(--bg2);
       display: none;
       align-items: center;
       justify-content: center;
       opacity: 0;
       transition: opacity 0.7s ease;
     }
-    #slideshow-mode.visible {
-      display: flex;
-      opacity: 1;
-    }
+    #slideshow-mode.visible { display: flex; opacity: 1; }
 
-    /* Два слоя для плавного кроссфейда */
     .slide-layer {
       position: absolute; inset: 0;
       background-size: cover;
@@ -441,50 +467,52 @@
     }
     .slide-layer.active { opacity: 1; }
 
-    /* Тихая подпись снизу */
     #slideshow-caption {
       position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 80px 40px 30px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      padding: 80px 40px 32px;
+      background: linear-gradient(transparent, rgba(42,31,20,0.65));
       text-align: center;
       pointer-events: none;
     }
 
     #slideshow-title {
-      font-size: clamp(2rem, 5vw, 4rem);
-      color: var(--gold);
-      letter-spacing: 0.15em;
-      text-shadow: 0 0 60px rgba(240,192,64,0.4);
-      animation: glow 4s ease-in-out infinite;
+      font-size: clamp(2.2rem, 5.5vw, 4.5rem);
+      font-weight: 600;
+      color: #fdf8ee;
+      letter-spacing: 0.18em;
+      text-shadow: 0 2px 20px rgba(42,31,20,0.4);
+      animation: glow 5s ease-in-out infinite;
     }
 
     #slideshow-subtitle {
       margin-top: 8px;
-      color: rgba(240,234,216,0.55);
-      font-size: clamp(0.8rem, 1.5vw, 1.1rem);
-      letter-spacing: 0.2em;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      color: rgba(253,240,220,0.7);
+      font-size: clamp(0.8rem, 1.6vw, 1.2rem);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
     }
 
-    /* Точки-индикаторы текущего слайда */
     #slideshow-dots {
-      position: absolute; bottom: 14px; left: 50%;
+      position: absolute; bottom: 16px; left: 50%;
       transform: translateX(-50%);
       display: flex; gap: 8px;
     }
     .slide-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: rgba(240,192,64,0.3);
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(253,240,220,0.35);
       transition: background 0.4s;
     }
-    .slide-dot.active { background: var(--gold); }
+    .slide-dot.active { background: rgba(253,240,220,0.9); }
 
     /* ── Индикатор подключения ── */
     #status-dot {
       position: fixed; bottom: 10px; right: 14px;
-      width: 7px; height: 7px; border-radius: 50%;
-      background: #3a9; opacity: 0.7; z-index: 200;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #5aaa80; opacity: 0.6; z-index: 200;
     }
-    #status-dot.error { background: #e43; }
+    #status-dot.error { background: #c05060; }
   </style>
 </head>
 <body>
