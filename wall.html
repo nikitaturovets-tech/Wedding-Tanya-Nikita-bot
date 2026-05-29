@@ -450,16 +450,56 @@
       position: fixed; inset: 0; z-index: 85;
       background: var(--bg2);
       display: none;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       opacity: 0;
       transition: opacity 0.7s ease;
+      gap: 28px;
     }
     #slideshow-mode.visible { display: flex; opacity: 1; }
 
+    /* Заголовок над рамкой */
+    #slideshow-header {
+      text-align: center;
+      pointer-events: none;
+    }
+    #slideshow-title {
+      font-size: clamp(1.8rem, 4vw, 3.2rem);
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.18em;
+      animation: glow 5s ease-in-out infinite;
+    }
+    #slideshow-subtitle {
+      margin-top: 6px;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      color: var(--muted);
+      font-size: clamp(0.7rem, 1.4vw, 1rem);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+    }
+
+    /* Рамка с фото */
+    #slideshow-frame {
+      position: relative;
+      width: min(72vw, 72vh * 1.4);
+      height: min(52vw, 52vh * 1.4);
+      max-width: 900px;
+      max-height: 640px;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 6px var(--surface),
+        0 0 0 9px var(--gold-dim),
+        0 12px 48px rgba(42,31,20,0.18);
+      background: var(--bg);
+    }
+
     .slide-layer {
       position: absolute; inset: 0;
-      background-size: cover;
+      background-size: contain;
       background-position: center;
       background-repeat: no-repeat;
       opacity: 0;
@@ -467,44 +507,16 @@
     }
     .slide-layer.active { opacity: 1; }
 
-    #slideshow-caption {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 80px 40px 32px;
-      background: linear-gradient(transparent, rgba(42,31,20,0.65));
-      text-align: center;
-      pointer-events: none;
-    }
-
-    #slideshow-title {
-      font-size: clamp(2.2rem, 5.5vw, 4.5rem);
-      font-weight: 600;
-      color: #fdf8ee;
-      letter-spacing: 0.18em;
-      text-shadow: 0 2px 20px rgba(42,31,20,0.4);
-      animation: glow 5s ease-in-out infinite;
-    }
-
-    #slideshow-subtitle {
-      margin-top: 8px;
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 300;
-      color: rgba(253,240,220,0.7);
-      font-size: clamp(0.8rem, 1.6vw, 1.2rem);
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-    }
-
+    /* Точки под рамкой */
     #slideshow-dots {
-      position: absolute; bottom: 16px; left: 50%;
-      transform: translateX(-50%);
       display: flex; gap: 8px;
     }
     .slide-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: rgba(253,240,220,0.35);
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border);
       transition: background 0.4s;
     }
-    .slide-dot.active { background: rgba(253,240,220,0.9); }
+    .slide-dot.active { background: var(--gold); }
 
     /* ── Индикатор подключения ── */
     #status-dot {
@@ -550,16 +562,19 @@
 
 <!-- ═══════════════ РЕЖИМ СЛАЙДШОУ ═══════════════ -->
 <div id="slideshow-mode">
-  <!-- Два слоя для плавного кроссфейда между фото -->
-  <div class="slide-layer" id="slide-a"></div>
-  <div class="slide-layer" id="slide-b"></div>
-
-  <div id="slideshow-caption">
-    <!-- ✏️ Замените имена здесь -->
+  <!-- Заголовок над рамкой -->
+  <div id="slideshow-header">
     <div id="slideshow-title">💒 Таня &amp; Никита</div>
     <div id="slideshow-subtitle">28 · 06 · 2025</div>
   </div>
 
+  <!-- Рамка с фото -->
+  <div id="slideshow-frame">
+    <div class="slide-layer" id="slide-a"></div>
+    <div class="slide-layer" id="slide-b"></div>
+  </div>
+
+  <!-- Точки-индикаторы -->
   <div id="slideshow-dots"></div>
 </div>
 
