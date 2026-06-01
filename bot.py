@@ -507,38 +507,6 @@ async def cmd_clear_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info("Администратор очистил очередь тостов (%d записей)", count)
 
 
-# ──────────────────────── расписание дня ────────────────────────────────────
-
-SCHEDULE = """📅 *Программа вечера*
-
-🕠 *17:30 – 18:30* — Сбор гостей
-　　🥩 Кортадор
-　　🥂 Шампанское & Апероль
-　　🎵 Диджей
-
-🥂 *18:30* — Приветственный тост и начало банкета
-　　Тосты родителей
-
-🎉 *19:00* — Активность
-
-🍽 *19:30* — Горячее
-
-🎤 *20:30* — Конкурс / квиз
-　　Тосты от гостей
-
-💃 *21:00* — Медленный танец
-
-💐 *21:30* — Бросаем букет & подарки
-
-🎂 *22:00* — Торт
-
-🌙 *23:00 – 23:30* — Расходимся"""
-
-
-async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает расписание свадебного вечера."""
-    await update.message.reply_text(SCHEDULE, parse_mode="Markdown")
-
 
 # ──────────────────────── обработчик входящих фото ──────────────────────────
 
@@ -929,7 +897,6 @@ async def setup_commands(app: Application) -> None:
     # Команды для всех гостей
     guest_commands = [
         BotCommand("start",       "👋 Начало — как пользоваться ботом"),
-        BotCommand("schedule",    "📅 Программа вечера"),
         BotCommand("toast",       "🥂 Встать в очередь на тост"),
         BotCommand("canceltoast", "❌ Выйти из очереди на тост"),
         BotCommand("skip",        "⏩ Пропустить добавление подписи к фото"),
@@ -991,9 +958,6 @@ def main() -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("newsession", cmd_new_session))
     app.add_handler(CommandHandler("clearsession", cmd_clear_session))
-
-    # Расписание
-    app.add_handler(CommandHandler("schedule", cmd_schedule))
 
     # Пропуск подписи к фото
     app.add_handler(CommandHandler("skip", cmd_skip))
