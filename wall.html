@@ -518,6 +518,16 @@
     }
     .slide-dot.active { background: var(--gold); }
 
+    /* ── РЕЖИМ ЗВЁЗДНОЕ НЕБО ── */
+    #starsky-mode {
+      position: fixed; inset: 0; z-index: 95;
+      display: none;
+      opacity: 0;
+      transition: opacity 1.2s ease;
+      background: #000 url('/starry-bg') center/cover no-repeat;
+    }
+    #starsky-mode.visible { display: block; opacity: 1; }
+
     /* ── Индикатор подключения ── */
     #status-dot {
       position: fixed; bottom: 10px; right: 14px;
@@ -559,6 +569,9 @@
     <div class="sp-badge" id="sp-badge">✨ Новое фото!</div>
   </div>
 </div>
+
+<!-- ═══════════════ РЕЖИМ ЗВЁЗДНОЕ НЕБО ═══════════════ -->
+<div id="starsky-mode"></div>
 
 <!-- ═══════════════ РЕЖИМ СЛАЙДШОУ ═══════════════ -->
 <div id="slideshow-mode">
@@ -966,6 +979,7 @@
   // РЕЖИМ СЛАЙДШОУ — логика
   // ═══════════════════════════════════════════════════════
   const slideshowEl  = document.getElementById('slideshow-mode');
+  const starSkyEl    = document.getElementById('starsky-mode');
   const slideA       = document.getElementById('slide-a');
   const slideB       = document.getElementById('slide-b');
   const slideDots    = document.getElementById('slideshow-dots');
@@ -987,11 +1001,20 @@
       if (modeStr === prevModeStr) return;
       prevModeStr = modeStr;
 
-      if (data.mode === 'slideshow') {
-        hideQuizMode();   // скрываем квиз поверх слайдшоу
-        await startSlideshow();
-      } else {
+      if (data.mode === 'starsky') {
+        hideQuizMode();
         stopSlideshow();
+        starSkyEl.style.display = 'block';
+        requestAnimationFrame(() => starSkyEl.classList.add('visible'));
+      } else {
+        starSkyEl.classList.remove('visible');
+        setTimeout(() => { starSkyEl.style.display = 'none'; }, 1200);
+        if (data.mode === 'slideshow') {
+          hideQuizMode();
+          await startSlideshow();
+        } else {
+          stopSlideshow();
+        }
       }
     } catch (e) {
       console.error('Ошибка /mode:', e);

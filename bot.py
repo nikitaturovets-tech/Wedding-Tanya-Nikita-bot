@@ -665,6 +665,19 @@ async def cmd_wallmode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info("Режим стены: wall")
 
 
+async def cmd_starsky(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Переключить стену в режим Звёздное небо — полноэкранный фон."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    set_wall_mode("starsky")
+    await update.message.reply_text(
+        "🌌 Стена переключена в режим *Звёздное небо*.",
+        parse_mode="Markdown",
+    )
+    logger.info("Режим стены: starsky")
+
+
 # ──────────────────────────── КОМАНДЫ КВИЗА ─────────────────────────────────
 
 async def _broadcast_question(context, questions: list, q_idx: int) -> int:
@@ -908,6 +921,7 @@ async def setup_commands(app: Application) -> None:
         BotCommand("nexttoast",     "➡️ Следующий тост"),
         BotCommand("clearqueue",    "🗑 Очистить очередь тостов"),
         BotCommand("slideshow",     "🖼 Стена: режим слайдшоу"),
+        BotCommand("starsky",       "🌌 Стена: режим звёздное небо"),
         BotCommand("wallmode",      "📸 Стена: режим фото гостей"),
         BotCommand("status",        "📊 Статус текущей сессии фото"),
         BotCommand("newsession",    "🆕 Начать новую сессию фото"),
@@ -971,6 +985,7 @@ def main() -> None:
 
     # ── Режим стены (только для администратора) ──────────────────────────────
     app.add_handler(CommandHandler("slideshow", cmd_slideshow))
+    app.add_handler(CommandHandler("starsky", cmd_starsky))
     app.add_handler(CommandHandler("wallmode", cmd_wallmode))
 
     # ── Квиз (только для администратора) ─────────────────────────────────────

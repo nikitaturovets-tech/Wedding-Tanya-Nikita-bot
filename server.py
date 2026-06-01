@@ -137,6 +137,8 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_events()
         elif path == "/download":
             self.serve_download()
+        elif path == "/starry-bg":
+            self.serve_starry_bg()
         elif path.startswith("/photo/"):
             filename = path[len("/photo/"):]
             self.serve_photo(filename)
@@ -343,6 +345,24 @@ class WallHandler(BaseHTTPRequestHandler):
             logger.info("ZIP скачан: %d фото, %.1f МБ", len(photos), len(zip_bytes) / 1024 / 1024)
         except OSError as e:
             logger.error("Ошибка создания ZIP: %s", e)
+            self.send_error(500)
+
+    def serve_starry_bg(self):
+        """Отдаёт фото звёздного неба для fullscreen-режима."""
+        filepath = Path("starry_bg.jpg")
+        if not filepath.exists():
+            self.send_error(404)
+            return
+        try:
+            content = filepath.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(content)
+        except OSError as e:
+            logger.error("Ошибка чтения starry_bg.jpg: %s", e)
             self.send_error(500)
 
     def serve_photo(self, filename: str):
