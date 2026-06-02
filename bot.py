@@ -510,13 +510,7 @@ async def cmd_clear_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 # ──────────────────────── обработчик входящих фото ──────────────────────────
 
-# Словарь ожидающих подписи: user_id → {filename, name, time, session_id}
-# Фото сохранено на диск, но НЕ добавлено в meta — ждём подпись или /skip
-pending_caption: dict = {}
-
-
-def _publish_photo(filename: str, name: str, time_str: str,
-                   session_id: str, caption: str) -> None:
+def _publish_photo(filename: str, name: str, time_str: str, session_id: str) -> None:
     """Добавляет фото в photos_meta.json — после этого оно появляется на стене."""
     meta = load_meta()
     meta.append({
@@ -524,30 +518,16 @@ def _publish_photo(filename: str, name: str, time_str: str,
         "name":       name,
         "time":       time_str,
         "session_id": session_id,
-        "caption":    caption,
+        "caption":    "",
     })
     save_meta(meta)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Принимает фото от гостя, сохраняет на диск и ждёт подписи.
-    На стену фото НЕ добавляется до тех пор, пока гость не напишет
-    подпись или не отправит /skip.
-    """
+    """Принимает фото от гостя, сохраняет на диск и сразу публикует на стене."""
     user = update.effective_user
     name = user.full_name if user else "Гость"
     register_user(user.id, update.effective_chat.id, user.first_name)
-
-    # Если гость прислал новое фото пока мы ждали подпись к предыдущему —
-    # публикуем предыдущее без подписи, чтобы не потерять
-    if user.id in pending_caption:
-        prev = pending_caption.pop(user.id)
-        _publish_photo(
-            prev["filename"], prev["name"], prev["time"],
-            prev["session_id"], caption=""
-        )
-        logger.info("Предыдущее фото %s опубликовано без подписи (гость прислал новое)", prev["filename"])
 
     # Берём фото в максимальном качестве
     photo = update.message.photo[-1]
@@ -566,63 +546,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # Запоминаем данные фото — НЕ публикуем пока нет подписи
-    pending_caption[user.id] = {
-        "filename":   filename,
-        "name":       name,
-        "time":       datetime.now().strftime("%H:%M"),
-        "session_id": get_current_session_id(),
-    }
+    _publish_photo(filename, name, datetime.now().strftime("%H:%M"), get_current_session_id())
 
     await update.message.reply_text(
-        f"✨ Фото получено, {name}!\n\n"
-        "✏️ Напиши подпись к фото — она появится на экране в зале.\n"
-        "Или отправь /skip чтобы пропустить."
+        f"🎊 Готово, {name}! Твоё фото появится на экране в зале!"
     )
 
 
-async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Гость пропускает добавление подписи — фото публикуется без подписи."""
-    user = update.effective_user
-    name = user.full_name if user else "Гость"
-
-    if user.id in pending_caption:
-        pending = pending_caption.pop(user.id)
-        _publish_photo(
-            pending["filename"], pending["name"], pending["time"],
-            pending["session_id"], caption=""
-        )
-        logger.info("Фото %s опубликовано без подписи (/skip)", pending["filename"])
-        await update.message.reply_text(
-            f"🎊 Готово, {name}! Твоё фото появится на экране в зале!"
-        )
-    else:
-        await update.message.reply_text(
-            "📸 Сначала пришли фото, а потом добавляй подпись."
-        )
-
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обрабатывает текст: сохраняет подпись и публикует фото, или просит прислать фото."""
+    """Обрабатывает входящий текст — просит прислать фото."""
     user = update.effective_user
-    name = user.full_name if user else "Гость"
     register_user(user.id, update.effective_chat.id, user.first_name)
-    text = update.message.text.strip()
-
-    if user.id in pending_caption:
-        pending = pending_caption.pop(user.id)
-        caption = text[:100]  # не более 100 символов
-
-        _publish_photo(
-            pending["filename"], pending["name"], pending["time"],
-            pending["session_id"], caption=caption
-        )
-        logger.info("Фото %s опубликовано с подписью от %s: %r", pending["filename"], name, caption)
-        await update.message.reply_text(
-            f"🎊 Готово, {name}! Фото с подписью появится на экране в зале!"
-        )
-        return
-
     await update.message.reply_text(
         "📸 Пришли мне фото! Просто прикрепи снимок к сообщению и отправь."
     )
@@ -912,7 +847,6 @@ async def setup_commands(app: Application) -> None:
         BotCommand("start",       "👋 Начало — как пользоваться ботом"),
         BotCommand("toast",       "🥂 Встать в очередь на тост"),
         BotCommand("canceltoast", "❌ Выйти из очереди на тост"),
-        BotCommand("skip",        "⏩ Пропустить добавление подписи к фото"),
     ]
 
     # Команды для администратора (включают всё гостевое + управление)
@@ -972,9 +906,6 @@ def main() -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("newsession", cmd_new_session))
     app.add_handler(CommandHandler("clearsession", cmd_clear_session))
-
-    # Пропуск подписи к фото
-    app.add_handler(CommandHandler("skip", cmd_skip))
 
     # ── Очередь тостов ────────────────────────────────────────────────────────
     app.add_handler(CommandHandler("toast", cmd_toast))
