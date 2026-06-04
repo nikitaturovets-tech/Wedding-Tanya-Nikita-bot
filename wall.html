@@ -752,6 +752,15 @@
         grid.style.display  = 'none';
         empty.style.display = 'flex';
         counter.textContent = '📸 0 фото';
+        // Сбрасываем локальный стейт — фото удалены на сервере
+        allPhotos = [];
+        shown.clear();
+        spotlightQueue = [];
+        spotlightBusy = false;
+        carouselIdx = 0;
+        lastShownFile = null;
+        spotlight.classList.remove('active');
+        grid.innerHTML = '';
         return;
       }
       grid.style.display  = 'grid';
