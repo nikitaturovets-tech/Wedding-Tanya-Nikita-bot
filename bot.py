@@ -597,6 +597,20 @@ async def cmd_wallmode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info("Режим стены: wall")
 
 
+async def cmd_presentation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Переключить стену в режим презентации — ручное переключение кликером."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Нет доступа.")
+        return
+    set_wall_mode("presentation")
+    await update.message.reply_text(
+        "🎞 Стена переключена в режим *Презентация*.\n"
+        "Управление кликером: → / PageDown — вперёд, ← / PageUp — назад.",
+        parse_mode="Markdown",
+    )
+    logger.info("Режим стены: presentation")
+
+
 async def cmd_starsky(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Переключить стену в режим Звёздное небо — полноэкранный фон."""
     if not is_admin(update.effective_user.id):
@@ -852,6 +866,7 @@ async def setup_commands(app: Application) -> None:
         BotCommand("nexttoast",     "➡️ Следующий тост"),
         BotCommand("clearqueue",    "🗑 Очистить очередь тостов"),
         BotCommand("slideshow",     "🖼 Стена: режим слайдшоу"),
+        BotCommand("presentation",  "🎞 Стена: режим презентация"),
         BotCommand("starsky",       "🌌 Стена: режим звёздное небо"),
         BotCommand("wallmode",      "📸 Стена: режим фото гостей"),
         BotCommand("status",        "📊 Статус текущей сессии фото"),
@@ -913,6 +928,7 @@ def main() -> None:
 
     # ── Режим стены (только для администратора) ──────────────────────────────
     app.add_handler(CommandHandler("slideshow", cmd_slideshow))
+    app.add_handler(CommandHandler("presentation", cmd_presentation))
     app.add_handler(CommandHandler("starsky", cmd_starsky))
     app.add_handler(CommandHandler("wallmode", cmd_wallmode))
 
