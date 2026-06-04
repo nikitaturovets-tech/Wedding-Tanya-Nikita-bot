@@ -647,6 +647,19 @@ async def _broadcast_question(context, questions: list, q_idx: int) -> int:
             sent += 1
         except Exception as e:
             logger.warning("Не удалось отправить вопрос в чат %s: %s", chat_id, e)
+
+    # Отправляем вопрос админу отдельно (только для зачитывания, без учёта в результатах)
+    if ADMIN_ID:
+        correct_opt = q["options"][q["correct"]]
+        admin_text = (
+            f"📋 *Вопрос {q_idx + 1} из {len(questions)}* _(только для тебя)_\n\n"
+            f"{q['question']}\n\n"
+            + "\n".join(f"{i+1}. {opt}" + (" ✅" if i == q["correct"] else "") for i, opt in enumerate(q["options"]))
+        )
+        try:
+            await context.bot.send_message(ADMIN_ID, admin_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.warning("Не удалось отправить вопрос админу: %s", e)
     return sent
 
 
