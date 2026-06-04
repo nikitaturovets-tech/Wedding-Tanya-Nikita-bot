@@ -1068,7 +1068,7 @@
   function showPresSlide(idx) {
     if (!presFiles.length) return;
     presIdx = (idx + presFiles.length) % presFiles.length;
-    const url = `/preset/${presFiles[presIdx]}`;
+    const url = `/presentation-photo/${presFiles[presIdx]}`;
 
     presPreload = new Image();
     presPreload.onload = () => {
@@ -1090,7 +1090,7 @@
 
   async function startPresentation() {
     try {
-      const res = await fetch('/preset-list');
+      const res = await fetch('/presentation-list');
       presFiles = await res.json();
     } catch (e) { presFiles = []; }
     if (!presFiles.length) return;

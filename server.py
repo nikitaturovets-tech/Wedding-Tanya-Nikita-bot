@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 PHOTOS_DIR       = Path("photos")
 PRESET_DIR       = Path("photos_preset")
+PRES_DIR         = Path("photos_presentation")
 META_FILE        = Path("photos_meta.json")
 SESSION_FILE     = Path("session.json")
 QUIZ_STATE_FILE  = Path("quiz_state.json")
@@ -137,6 +138,11 @@ class WallHandler(BaseHTTPRequestHandler):
             self.serve_events()
         elif path == "/download":
             self.serve_download()
+        elif path == "/presentation-list":
+            self.serve_presentation_list()
+        elif path.startswith("/presentation-photo/"):
+            filename = path[len("/presentation-photo/"):]
+            self.serve_presentation_photo(filename)
         elif path == "/starry-bg":
             self.serve_starry_bg()
         elif path.startswith("/photo/"):
@@ -347,6 +353,46 @@ class WallHandler(BaseHTTPRequestHandler):
             logger.error("Ошибка создания ZIP: %s", e)
             self.send_error(500)
 
+    def serve_presentation_list(self):
+        """Возвращает список файлов из photos_presentation/ в формате JSON."""
+        PRES_DIR.mkdir(exist_ok=True)
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        files = sorted(
+            f.name for f in PRES_DIR.iterdir()
+            if f.is_file() and f.suffix.lower() in exts
+        )
+        body = json.dumps(files, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_presentation_photo(self, filename: str):
+        """Отдаёт файл из папки photos_presentation/."""
+        if "/" in filename or "\\" in filename or ".." in filename:
+            self.send_error(400)
+            return
+        filepath = PRES_DIR / filename
+        if not filepath.exists():
+            self.send_error(404)
+            return
+        try:
+            content = filepath.read_bytes()
+            mime_type, _ = mimetypes.guess_type(str(filepath))
+            if not mime_type:
+                mime_type = "image/jpeg"
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(content)
+        except OSError as e:
+            logger.error("Ошибка чтения presentation фото %s: %s", filename, e)
+            self.send_error(500)
+
     def serve_starry_bg(self):
         """Отдаёт фото звёздного неба для fullscreen-режима."""
         filepath = Path("starry_bg.jpg")
@@ -397,6 +443,7 @@ def main():
     """Запускает HTTP-сервер с поддержкой SSE."""
     PHOTOS_DIR.mkdir(exist_ok=True)
     PRESET_DIR.mkdir(exist_ok=True)
+    PRES_DIR.mkdir(exist_ok=True)
 
     # Запускаем фоновый поток-наблюдатель за новыми фото
     watcher = threading.Thread(target=_watcher_thread, daemon=True)
