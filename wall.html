@@ -839,7 +839,11 @@
       if (n > 1 && allPhotos[carouselIdx % n].filename === lastShownFile) carouselIdx++;
       photo = allPhotos[carouselIdx++ % n]; isNew = false;
     }
-    showSpotlight(photo, isNew, () => { spotlightBusy = false; processSpotlight(); });
+    const pause = isNew ? 500 : 4000;  // новое фото — пауза 0.5с, карусель — 4с
+    showSpotlight(photo, isNew, () => {
+      spotlightBusy = false;
+      setTimeout(processSpotlight, pause);
+    });
   }
 
   function showSpotlight(photo, isNew, onDone) {
