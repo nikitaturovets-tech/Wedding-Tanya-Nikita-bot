@@ -153,6 +153,8 @@ def save_known_users() -> None:
 
 def register_user(user_id: int, chat_id: int, name: str) -> None:
     """Регистрирует пользователя в known_users и participants квиза."""
+    if is_admin(user_id):
+        return  # Админ не участвует в квизе
     is_new = user_id not in known_users
     known_users[user_id] = chat_id
     uid = str(user_id)
