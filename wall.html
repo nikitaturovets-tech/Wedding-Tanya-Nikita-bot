@@ -521,53 +521,12 @@
     /* ── РЕЖИМ ПРЕЗЕНТАЦИИ ── */
     #presentation-mode {
       position: fixed; inset: 0; z-index: 88;
-      background: #0a0a0a;
+      background: #000 center/cover no-repeat;
       display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
       opacity: 0;
-      transition: opacity 0.7s ease;
-      gap: 20px;
+      transition: opacity 1.2s ease;
     }
-    #presentation-mode.visible { display: flex; opacity: 1; }
-
-    #presentation-frame {
-      position: relative;
-      width: min(90vw, 90vh * 1.6);
-      height: min(63vw, 63vh * 1.6);
-      max-width: 1500px;
-      max-height: 850px;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.6);
-      background: #111;
-    }
-    .pres-layer {
-      position: absolute; inset: 0;
-      background-size: contain;
-      background-position: center;
-      background-repeat: no-repeat;
-      opacity: 0;
-      transition: opacity 0.6s ease;
-    }
-    .pres-layer.active { opacity: 1; }
-
-    #presentation-counter {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.85rem;
-      letter-spacing: 0.2em;
-      color: rgba(255,255,255,0.35);
-    }
-    #presentation-dots {
-      display: flex; gap: 7px;
-    }
-    .pres-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: rgba(255,255,255,0.2);
-      transition: background 0.3s;
-    }
-    .pres-dot.active { background: rgba(255,255,255,0.85); }
+    #presentation-mode.visible { display: block; opacity: 1; }
 
     /* ── РЕЖИМ ЗВЁЗДНОЕ НЕБО ── */
     #starsky-mode {
@@ -622,14 +581,7 @@
 </div>
 
 <!-- ═══════════════ РЕЖИМ ПРЕЗЕНТАЦИИ ═══════════════ -->
-<div id="presentation-mode">
-  <div id="presentation-frame">
-    <div class="pres-layer" id="pres-a"></div>
-    <div class="pres-layer" id="pres-b"></div>
-  </div>
-  <div id="presentation-counter"></div>
-  <div id="presentation-dots"></div>
-</div>
+<div id="presentation-mode"></div>
 
 <!-- ═══════════════ РЕЖИМ ЗВЁЗДНОЕ НЕБО ═══════════════ -->
 <div id="starsky-mode"></div>
@@ -1046,70 +998,16 @@
   const slideshowEl    = document.getElementById('slideshow-mode');
   const starSkyEl      = document.getElementById('starsky-mode');
   const presentationEl = document.getElementById('presentation-mode');
-  const presFrameA     = document.getElementById('pres-a');
-  const presFrameB     = document.getElementById('pres-b');
-  const presCounter    = document.getElementById('presentation-counter');
-  const presDots       = document.getElementById('presentation-dots');
-
-  let presFiles  = [];
-  let presIdx    = 0;
-  let presActive = false;  // A=true, B=false
-  let presPreload = new Image();
-
-  function buildPresDots() {
-    presDots.innerHTML = '';
-    presFiles.forEach((_, i) => {
-      const d = document.createElement('div');
-      d.className = 'pres-dot' + (i === presIdx ? ' active' : '');
-      presDots.appendChild(d);
-    });
-  }
-
-  function updatePresCounter() {
-    presCounter.textContent = `${presIdx + 1} / ${presFiles.length}`;
-  }
-
-  function showPresSlide(idx) {
-    if (!presFiles.length) return;
-    presIdx = (idx + presFiles.length) % presFiles.length;
-    const url = `/presentation-photo/${presFiles[presIdx]}`;
-
-    presPreload = new Image();
-    presPreload.onload = () => {
-      const next = presActive ? presFrameB : presFrameA;
-      const curr = presActive ? presFrameA : presFrameB;
-      next.style.backgroundImage = `url('${url}')`;
-      next.classList.add('active');
-      curr.classList.remove('active');
-      presActive = !presActive;
-    };
-    presPreload.src = url;
-
-    // Обновляем точки и счётчик
-    presDots.querySelectorAll('.pres-dot').forEach((d, i) =>
-      d.classList.toggle('active', i === presIdx)
-    );
-    updatePresCounter();
-  }
 
   async function startPresentation() {
     try {
       const res = await fetch('/presentation-list');
-      presFiles = await res.json();
-    } catch (e) { presFiles = []; }
-    if (!presFiles.length) return;
+      const files = await res.json();
+      if (!files.length) return;
+      presentationEl.style.backgroundImage = `url('/presentation-photo/${files[0]}')`;
+    } catch (e) { return; }
 
-    presIdx = 0;
-    presActive = false;
-    presFrameA.style.backgroundImage = '';
-    presFrameB.style.backgroundImage = '';
-    presFrameA.classList.remove('active');
-    presFrameB.classList.remove('active');
-
-    buildPresDots();
-    showPresSlide(0);
-
-    presentationEl.style.display = 'flex';
+    presentationEl.style.display = 'block';
     requestAnimationFrame(() => presentationEl.classList.add('visible'));
     spotlight.classList.remove('active');
     spotlightBusy = true;
@@ -1117,21 +1015,9 @@
 
   function stopPresentation() {
     presentationEl.classList.remove('visible');
-    setTimeout(() => { presentationEl.style.display = 'none'; }, 700);
+    setTimeout(() => { presentationEl.style.display = 'none'; }, 1200);
     spotlightBusy = false;
   }
-
-  // Клавиатурный обработчик для кликера
-  document.addEventListener('keydown', (e) => {
-    if (!presentationEl.classList.contains('visible')) return;
-    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) {
-      e.preventDefault();
-      showPresSlide(presIdx + 1);
-    } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) {
-      e.preventDefault();
-      showPresSlide(presIdx - 1);
-    }
-  });
   const slideA       = document.getElementById('slide-a');
   const slideB       = document.getElementById('slide-b');
   const slideDots    = document.getElementById('slideshow-dots');
